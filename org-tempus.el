@@ -41,8 +41,16 @@
   :package-version '(org-tempus . "0.0.1")
   :group 'org-tempus)
 
+(defcustom org-tempus-update-interval 60
+  "Seconds between automatic mode line refreshes."
+  :type 'integer
+  :group 'org-tempus)
+
 (defvar org-tempus-mode-line-string ""
   "Org Tempus mode line indicator.")
+
+(defvar org-tempus--timer nil
+  "Timer used to refresh the Org Tempus mode line.")
 
 (defun org-tempus--current-task-name ()
   "Return unpropertized name of current task."
@@ -74,6 +82,12 @@
   :global t
   (if org-tempus-mode
       (progn
+        (when (timerp org-tempus--timer)
+          (cancel-timer org-tempus--timer))
+        (setq org-tempus--timer
+              (run-at-time org-tempus-update-interval
+                           org-tempus-update-interval
+                           #'org-tempus--update-mode-line))
         (add-hook 'org-clock-in-hook #'org-tempus--update-mode-line)
         (add-hook 'org-clock-out-hook #'org-tempus--update-mode-line)
         (when org-tempus-add-to-global-mode-string
@@ -88,6 +102,9 @@
       (setq global-mode-string
             (remove 'org-tempus-mode-line-string global-mode-string))
       (force-mode-line-update))
+    (when (timerp org-tempus--timer)
+      (cancel-timer org-tempus--timer))
+    (setq org-tempus--timer nil)
     (remove-hook 'org-clock-in-hook #'org-tempus--update-mode-line)
     (remove-hook 'org-clock-out-hook #'org-tempus--update-mode-line)))
 
