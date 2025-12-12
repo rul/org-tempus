@@ -57,20 +57,27 @@
   (substring-no-properties org-clock-current-task))
 
 (defun org-tempus--sum-today ()
-  "Return unpropertized time clocked in today."
-  (substring-no-properties (org-clock-sum-today))
-  )
+  "Return total time clocked today across agenda files as a duration string."
+  (let* ((range (org-clock-special-range 'today nil t))
+         (tstart (nth 0 range))
+         (tend (nth 1 range))
+         (total 0))
+    (dolist (file (org-agenda-files t) total)
+      (when (file-exists-p file)
+        (with-current-buffer (find-file-noselect file)
+          (setq total (+ total (org-clock-sum tstart tend))))))
+    (org-duration-from-minutes total)))
 
 (defun org-tempus--current-task-time ()
-  "Return clocked time for current task."
-  (number-to-string (org-clock-get-clocked-time)))
+  "Return clocked time for current task as a duration string."
+  (org-duration-from-minutes (org-clock-get-clocked-time)))
 
 (defun org-tempus--update-mode-line ()
   "Update the Org Tempus mode line indicator."
   (setq org-tempus-mode-line-string
         (propertize
          (if (org-clock-is-active)
-             (concat "🧉 " (org-tempus--current-task-name) " " (org-tempus--current-task-time) " " (org-clock-sum-today))
+             (concat "🧉 " (org-tempus--current-task-name) " " (org-tempus--current-task-time) " " (org-tempus--sum-today))
            (concat "☠️ " " "))
          'mouse-face 'mode-line-highlight))
   (force-mode-line-update))
