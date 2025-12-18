@@ -35,6 +35,16 @@
   "Display mode line indicator with information about clocked time."
   :group 'org)
 
+(defface org-tempus-mode-line-face
+  '((t :inherit mode-line))
+  "Face used for the Org Tempus mode line string."
+  :group 'org-tempus)
+
+(defface org-tempus-mode-line-hover-face
+  '((t :inherit mode-line-highlight))
+  "Face used when hovering over the Org Tempus mode line string."
+  :group 'org-tempus)
+
 (defcustom org-tempus-add-to-global-mode-string t
   "When non-nil, append the Org Tempus construct to the mode line."
   :type 'boolean
@@ -48,6 +58,15 @@
 
 (defvar org-tempus-mode-line-string ""
   "Org Tempus mode line indicator.")
+
+(defvar org-tempus--mode-line-map
+  (let ((map (make-sparse-keymap)))
+    (define-key map [mode-line mouse-1] #'ignore)
+    map)
+  "Keymap used for the Org Tempus mode line.")
+
+(defconst org-tempus--mode-line-format '(:eval org-tempus-mode-line-string)
+  "Mode line construct used by Org Tempus.")
 
 (defvar org-tempus--timer nil
   "Timer used to refresh the Org Tempus mode line.")
@@ -77,9 +96,14 @@
   (setq org-tempus-mode-line-string
         (propertize
          (if (org-clock-is-active)
-             (concat "🧉 " (org-tempus--current-task-name) " " (org-tempus--current-task-time) " " (org-tempus--sum-today))
-           (concat "☠️ " " "))
-         'mouse-face 'mode-line-highlight))
+             (concat "🧉 [" (org-tempus--sum-today) "] (" (org-tempus--current-task-name) " <" (org-tempus--current-task-time) ">)" )
+           (concat "☠️ [" (org-tempus--sum-today)"]"))
+         'face 'org-tempus-mode-line-face
+         'mouse-face 'org-tempus-mode-line-hover-face
+         'local-map org-tempus--mode-line-map
+         'keymap org-tempus--mode-line-map
+         'help-echo "Org Tempus"
+         'pointer 'hand))
   (force-mode-line-update))
 
 ;;;###autoload
@@ -99,15 +123,16 @@
         (add-hook 'org-clock-out-hook #'org-tempus--update-mode-line)
         (when org-tempus-add-to-global-mode-string
           (or global-mode-string (setq global-mode-string '("")))
-          (or (memq 'org-tempus-mode-line-string global-mode-string)
+          (or (memq org-tempus--mode-line-format global-mode-string)
               (setq global-mode-string
-                    (append global-mode-string '(org-tempus-mode-line-string)))))
+                    (append global-mode-string (list org-tempus--mode-line-format)))))
+        (setq org-clock-clocked-in-display nil)
         (org-tempus--update-mode-line))
 
     (when org-tempus-add-to-global-mode-string
       (or global-mode-string (setq global-mode-string '("")))
       (setq global-mode-string
-            (remove 'org-tempus-mode-line-string global-mode-string))
+            (remove org-tempus--mode-line-format global-mode-string))
       (force-mode-line-update))
     (when (timerp org-tempus--timer)
       (cancel-timer org-tempus--timer))
