@@ -176,11 +176,11 @@ A session does not reset when switching tasks within
                                         session)))
                     (org-tempus--maybe-notify-session-threshold session-seconds)
                     (concat "🧉 [S " session-str
-                            " | D " (org-tempus--sum-today) "] ("
+                            " | T " (org-tempus--sum-today) "] ("
                             (org-tempus--current-task-name)
                             " <" (org-tempus--current-task-time)
                             ">)"))
-                (concat "☠️ [" (org-tempus--sum-today)"]")))
+                (concat "☠️ [T " (org-tempus--sum-today)"]")))
          (str (propertize raw
                           'mouse-face 'org-tempus-mode-line-hover-face
                           'local-map org-tempus--mode-line-map
@@ -205,7 +205,7 @@ A session does not reset when switching tasks within
                          org-tempus-update-interval
                          #'org-tempus--update-mode-line))
       (add-hook 'org-clock-in-hook #'org-tempus--update-session-start)
-      (add-hook 'org-clock-in-hook #'org-tempus--update-mode-line)
+      (add-hook 'org-clock-in-hook #'org-tempus--update-mode-line t)
       (add-hook 'org-clock-out-hook #'org-tempus--update-mode-line)
       (when org-tempus-add-to-global-mode-string
         (or global-mode-string (setq global-mode-string '("")))
