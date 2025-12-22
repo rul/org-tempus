@@ -56,7 +56,7 @@
   :type 'integer
   :group 'org-tempus)
 
-(defcustom org-tempus-session-gap-seconds 120
+(defcustom org-tempus-session-gap-seconds 60
   "Maximum gap in seconds to consider consecutive clocks the same session."
   :type 'integer
   :group 'org-tempus)
@@ -128,7 +128,13 @@ A session does not reset when switching tasks within
   (setq org-tempus-mode-line-string
         (propertize
          (if (org-clock-is-active)
-             (concat "🧉 [" (org-tempus--sum-today) "] (" (org-tempus--current-task-name) " <" (org-tempus--current-task-time) ">)" )
+             (let ((session (org-duration-from-minutes
+                             (/ (org-tempus--current-session-duration) 60.0))))
+               (concat "🧉 [S " session
+                       " | D " (org-tempus--sum-today) "] ("
+                       (org-tempus--current-task-name)
+                       " <" (org-tempus--current-task-time)
+                       ">)"))
            (concat "☠️ [" (org-tempus--sum-today)"]"))
          'face 'org-tempus-mode-line-face
          'mouse-face 'org-tempus-mode-line-hover-face
