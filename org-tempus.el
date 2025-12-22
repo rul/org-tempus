@@ -61,6 +61,16 @@
   :type 'integer
   :group 'org-tempus)
 
+(defcustom org-tempus-session-threshold-seconds 1800
+  "Seconds of continuous session after which a notification is sent."
+  :type 'integer
+  :group 'org-tempus)
+
+(defface org-tempus-session-face
+  '((t :inherit (error mode-line) :weight bold))
+  "Face used for the session duration in the mode line after threshold."
+  :group 'org-tempus)
+
 (defvar org-tempus-mode-line-string ""
   "Org Tempus mode line indicator.")
 
@@ -78,6 +88,25 @@
 
 (defvar org-tempus--session-start-time nil
   "Internal session start time as a value returned by `current-time'.")
+
+(defvar org-tempus--session-threshold-notified nil
+  "Internal flag indicating the session threshold notification was sent.")
+
+(defun org-tempus--notify (msg)
+  "Notify user with MSG using desktop notifications when available."
+  (let ((sent nil))
+    (when (or (fboundp 'notifications-notify)
+              (require 'notifications nil t))
+      (setq sent
+            (condition-case err
+                (progn
+                  (notifications-notify :title "Org Tempus" :body msg)
+                  t)
+              (error
+               (message "Org Tempus notification error: %s" err)
+               nil))))
+    (unless sent
+      (message "%s" msg))))
 
 (defun org-tempus--current-task-name ()
   "Return unpropertized name of current task."
@@ -110,7 +139,9 @@
                      (>= gap 0)
                      (<= gap org-tempus-session-gap-seconds))
                 (or org-tempus--session-start-time org-clock-start-time)
-              org-clock-start-time)))))
+              (progn
+                (setq org-tempus--session-threshold-notified nil)
+                org-clock-start-time))))))
 
 (defun org-tempus--current-session-duration ()
   "Return current session duration in seconds.
@@ -123,25 +154,41 @@ A session does not reset when switching tasks within
     (floor (float-time (time-subtract (current-time)
                                       org-tempus--session-start-time)))))
 
+(defun org-tempus--maybe-notify-session-threshold (session-seconds)
+  "Send a one-time notification when SESSION-SECONDS crosses threshold."
+  (when (and (>= session-seconds org-tempus-session-threshold-seconds)
+             (not org-tempus--session-threshold-notified))
+    (setq org-tempus--session-threshold-notified t)
+    (let ((msg (format "Org Tempus session reached %s"
+                       (org-duration-from-minutes
+                        (/ session-seconds 60.0)))))
+      (org-tempus--notify msg))))
+
 (defun org-tempus--update-mode-line ()
   "Update the Org Tempus mode line indicator."
-  (setq org-tempus-mode-line-string
-        (propertize
-         (if (org-clock-is-active)
-             (let ((session (org-duration-from-minutes
-                             (/ (org-tempus--current-session-duration) 60.0))))
-               (concat "🧉 [S " session
-                       " | D " (org-tempus--sum-today) "] ("
-                       (org-tempus--current-task-name)
-                       " <" (org-tempus--current-task-time)
-                       ">)"))
-           (concat "☠️ [" (org-tempus--sum-today)"]"))
-         'face 'org-tempus-mode-line-face
-         'mouse-face 'org-tempus-mode-line-hover-face
-         'local-map org-tempus--mode-line-map
-         'keymap org-tempus--mode-line-map
-         'help-echo "Org Tempus"
-         'pointer 'hand))
+  (let* ((raw (if (org-clock-is-active)
+                  (let* ((session-seconds (org-tempus--current-session-duration))
+                         (session (org-duration-from-minutes
+                                   (/ session-seconds 60.0)))
+                         (session-str (if (>= session-seconds
+                                              org-tempus-session-threshold-seconds)
+                                          (propertize session 'face 'org-tempus-session-face)
+                                        session)))
+                    (org-tempus--maybe-notify-session-threshold session-seconds)
+                    (concat "🧉 [S " session-str
+                            " | D " (org-tempus--sum-today) "] ("
+                            (org-tempus--current-task-name)
+                            " <" (org-tempus--current-task-time)
+                            ">)"))
+                (concat "☠️ [" (org-tempus--sum-today)"]")))
+         (str (propertize raw
+                          'mouse-face 'org-tempus-mode-line-hover-face
+                          'local-map org-tempus--mode-line-map
+                          'keymap org-tempus--mode-line-map
+                          'help-echo "Org Tempus"
+                          'pointer 'hand)))
+    (add-face-text-property 0 (length str) 'org-tempus-mode-line-face 'append str)
+    (setq org-tempus-mode-line-string str))
   (force-mode-line-update))
 
 ;;;###autoload
