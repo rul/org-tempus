@@ -56,6 +56,11 @@
   :type 'integer
   :group 'org-tempus)
 
+(defcustom org-tempus-session-gap-seconds 120
+  "Maximum gap in seconds to consider consecutive clocks the same session."
+  :type 'integer
+  :group 'org-tempus)
+
 (defvar org-tempus-mode-line-string ""
   "Org Tempus mode line indicator.")
 
@@ -70,6 +75,9 @@
 
 (defvar org-tempus--timer nil
   "Timer used to refresh the Org Tempus mode line.")
+
+(defvar org-tempus--session-start-time nil
+  "Internal session start time as a value returned by `current-time'.")
 
 (defun org-tempus--current-task-name ()
   "Return unpropertized name of current task."
@@ -90,6 +98,30 @@
 (defun org-tempus--current-task-time ()
   "Return clocked time for current task as a duration string."
   (org-duration-from-minutes (org-clock-get-clocked-time)))
+
+(defun org-tempus--update-session-start ()
+  "Update session start time, keeping short switches in the same session."
+  (when org-clock-start-time
+    (let* ((last-out org-clock-out-time)
+           (gap (and last-out
+                     (float-time (time-subtract org-clock-start-time last-out)))))
+      (setq org-tempus--session-start-time
+            (if (and gap
+                     (>= gap 0)
+                     (<= gap org-tempus-session-gap-seconds))
+                (or org-tempus--session-start-time org-clock-start-time)
+              org-clock-start-time)))))
+
+(defun org-tempus--current-session-duration ()
+  "Return current session duration in seconds.
+A session does not reset when switching tasks within
+`org-tempus-session-gap-seconds'."
+  (if (not (org-clock-is-active))
+      0
+    (unless org-tempus--session-start-time
+      (setq org-tempus--session-start-time org-clock-start-time))
+    (floor (float-time (time-subtract (current-time)
+                                      org-tempus--session-start-time)))))
 
 (defun org-tempus--update-mode-line ()
   "Update the Org Tempus mode line indicator."
@@ -113,20 +145,23 @@
   :global t
   (if org-tempus-mode
       (progn
-        (when (timerp org-tempus--timer)
-          (cancel-timer org-tempus--timer))
-        (setq org-tempus--timer
-              (run-at-time org-tempus-update-interval
-                           org-tempus-update-interval
-                           #'org-tempus--update-mode-line))
-        (add-hook 'org-clock-in-hook #'org-tempus--update-mode-line)
-        (add-hook 'org-clock-out-hook #'org-tempus--update-mode-line)
-        (when org-tempus-add-to-global-mode-string
-          (or global-mode-string (setq global-mode-string '("")))
-          (or (memq org-tempus--mode-line-format global-mode-string)
+      (when (timerp org-tempus--timer)
+        (cancel-timer org-tempus--timer))
+      (setq org-tempus--timer
+            (run-at-time org-tempus-update-interval
+                         org-tempus-update-interval
+                         #'org-tempus--update-mode-line))
+      (add-hook 'org-clock-in-hook #'org-tempus--update-session-start)
+      (add-hook 'org-clock-in-hook #'org-tempus--update-mode-line)
+      (add-hook 'org-clock-out-hook #'org-tempus--update-mode-line)
+      (when org-tempus-add-to-global-mode-string
+        (or global-mode-string (setq global-mode-string '("")))
+        (or (memq org-tempus--mode-line-format global-mode-string)
               (setq global-mode-string
                     (append global-mode-string (list org-tempus--mode-line-format)))))
         (setq org-clock-clocked-in-display nil)
+        (when (org-clock-is-active)
+          (org-tempus--update-session-start))
         (org-tempus--update-mode-line))
 
     (when org-tempus-add-to-global-mode-string
@@ -137,6 +172,7 @@
     (when (timerp org-tempus--timer)
       (cancel-timer org-tempus--timer))
     (setq org-tempus--timer nil)
+    (remove-hook 'org-clock-in-hook #'org-tempus--update-session-start)
     (remove-hook 'org-clock-in-hook #'org-tempus--update-mode-line)
     (remove-hook 'org-clock-out-hook #'org-tempus--update-mode-line)))
 
