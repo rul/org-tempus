@@ -72,6 +72,11 @@
   :type 'integer
   :group 'org-tempus)
 
+(defcustom org-tempus-break-threshold-seconds 10800
+  "Maximum break seconds to display when no task is clocked in."
+  :type 'integer
+  :group 'org-tempus)
+
 (defface org-tempus-session-face
   '((t :inherit (error mode-line) :weight bold))
   "Face used for the session duration in the mode line after threshold."
@@ -188,6 +193,15 @@ A session does not reset when switching tasks within
                         (/ session-seconds 60.0)))))
       (org-tempus--notify msg))))
 
+(defun org-tempus--current-break-duration ()
+  "Return break duration in seconds, or nil when not applicable."
+  (when (and (not (org-clock-is-active))
+             org-clock-out-time)
+    (let ((gap (float-time (time-subtract (current-time) org-clock-out-time))))
+      (when (and (>= gap 0)
+                 (<= gap org-tempus-break-threshold-seconds))
+        (floor gap)))))
+
 (defun org-tempus--update-mode-line ()
   "Update the Org Tempus mode line indicator."
   (let* ((raw (if (org-clock-is-active)
@@ -204,7 +218,13 @@ A session does not reset when switching tasks within
                             (org-tempus--current-task-name)
                             " <" (org-tempus--current-task-time)
                             ">)"))
-                (concat "⌛️ [T " (org-tempus--sum-today)"]")))
+                (let* ((break-seconds (org-tempus--current-break-duration))
+                       (break-str (when break-seconds
+                                    (org-duration-from-minutes
+                                     (/ break-seconds 60.0)))))
+                  (concat "⌛️ [T " (org-tempus--sum-today)
+                          (if break-str (concat " | B " break-str) "")
+                          "]"))))
          (str (propertize raw
                           'mouse-face 'org-tempus-mode-line-hover-face
                           'local-map org-tempus--mode-line-map
