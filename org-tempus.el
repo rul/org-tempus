@@ -175,12 +175,12 @@ A session does not reset when switching tasks within
                                           (propertize session 'face 'org-tempus-session-face)
                                         session)))
                     (org-tempus--maybe-notify-session-threshold session-seconds)
-                    (concat "🧉 [S " session-str
+                    (concat "⏳ [S " session-str
                             " | T " (org-tempus--sum-today) "] ("
                             (org-tempus--current-task-name)
                             " <" (org-tempus--current-task-time)
                             ">)"))
-                (concat "☠️ [T " (org-tempus--sum-today)"]")))
+                (concat "⌛️ [T " (org-tempus--sum-today)"]")))
          (str (propertize raw
                           'mouse-face 'org-tempus-mode-line-hover-face
                           'local-map org-tempus--mode-line-map
