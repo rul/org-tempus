@@ -86,11 +86,28 @@
 (defvar org-tempus--timer nil
   "Timer used to refresh the Org Tempus mode line.")
 
+(defvar org-tempus--saved-org-mode-line-string nil
+  "Saved value of `org-mode-line-string' when `org-tempus-mode' is enabled.")
+
+(defvar org-tempus--saved-org-mode-line-string-present nil
+  "Non-nil when `org-mode-line-string' was in `global-mode-string'.")
+
+(defvar org-tempus--saved-org-clock-clocked-in-display nil
+  "Saved value of `org-clock-clocked-in-display' while Org Tempus is enabled.")
+
 (defvar org-tempus--session-start-time nil
   "Internal session start time as a value returned by `current-time'.")
 
 (defvar org-tempus--session-threshold-notified nil
   "Internal flag indicating the session threshold notification was sent.")
+
+(defun org-tempus--hide-org-mode-line ()
+  "Hide the stock Org mode line indicator while Org Tempus is active."
+  (setq org-mode-line-string nil)
+  (when (memq 'org-mode-line-string global-mode-string)
+    (setq org-tempus--saved-org-mode-line-string-present t)
+    (setq global-mode-string
+          (remove 'org-mode-line-string global-mode-string))))
 
 (defun org-tempus--notify (msg)
   "Notify user with MSG using desktop notifications when available."
@@ -206,13 +223,19 @@ A session does not reset when switching tasks within
                          #'org-tempus--update-mode-line))
       (add-hook 'org-clock-in-hook #'org-tempus--update-session-start)
       (add-hook 'org-clock-in-hook #'org-tempus--update-mode-line t)
+      (add-hook 'org-clock-in-hook #'org-tempus--hide-org-mode-line t)
       (add-hook 'org-clock-out-hook #'org-tempus--update-mode-line)
+      (add-hook 'org-clock-out-hook #'org-tempus--hide-org-mode-line)
       (when org-tempus-add-to-global-mode-string
         (or global-mode-string (setq global-mode-string '("")))
         (or (memq org-tempus--mode-line-format global-mode-string)
               (setq global-mode-string
                     (append global-mode-string (list org-tempus--mode-line-format)))))
+        (setq org-tempus--saved-org-clock-clocked-in-display org-clock-clocked-in-display)
         (setq org-clock-clocked-in-display nil)
+        (setq org-tempus--saved-org-mode-line-string org-mode-line-string)
+        (setq org-tempus--saved-org-mode-line-string-present nil)
+        (org-tempus--hide-org-mode-line)
         (when (org-clock-is-active)
           (org-tempus--update-session-start))
         (org-tempus--update-mode-line))
@@ -222,11 +245,20 @@ A session does not reset when switching tasks within
       (setq global-mode-string
             (remove org-tempus--mode-line-format global-mode-string))
       (force-mode-line-update))
+    (setq org-clock-clocked-in-display org-tempus--saved-org-clock-clocked-in-display)
+    (setq org-mode-line-string org-tempus--saved-org-mode-line-string)
+    (when org-tempus--saved-org-mode-line-string-present
+      (or global-mode-string (setq global-mode-string '("")))
+      (unless (memq 'org-mode-line-string global-mode-string)
+        (setq global-mode-string
+              (append global-mode-string (list 'org-mode-line-string)))))
     (when (timerp org-tempus--timer)
       (cancel-timer org-tempus--timer))
     (setq org-tempus--timer nil)
     (remove-hook 'org-clock-in-hook #'org-tempus--update-session-start)
     (remove-hook 'org-clock-in-hook #'org-tempus--update-mode-line)
+    (remove-hook 'org-clock-in-hook #'org-tempus--hide-org-mode-line)
+    (remove-hook 'org-clock-out-hook #'org-tempus--hide-org-mode-line)
     (remove-hook 'org-clock-out-hook #'org-tempus--update-mode-line)))
 
 (provide 'org-tempus)
