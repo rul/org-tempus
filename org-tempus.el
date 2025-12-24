@@ -77,6 +77,11 @@
   :type 'integer
   :group 'org-tempus)
 
+(defcustom org-tempus-show-legend t
+  "When non-nil, show legend labels (S, T, B) in the mode line."
+  :type 'boolean
+  :group 'org-tempus)
+
 (defface org-tempus-session-face
   '((t :inherit (error mode-line) :weight bold))
   "Face used for the session duration in the mode line after threshold."
@@ -208,6 +213,18 @@ A session does not reset when switching tasks within
                  (<= gap org-tempus-break-threshold-seconds))
         (floor gap)))))
 
+(defun org-tempus--format-mode-line-item (label value)
+  "Format a mode line VALUE with optional LABEL."
+  (if org-tempus-show-legend
+      (concat label " " value)
+    value))
+
+(defun org-tempus--mode-line-separator ()
+  "Return the separator used between mode line items."
+  (if org-tempus-show-legend
+      " | "
+    "|"))
+
 (defun org-tempus--update-mode-line ()
   "Update the Org Tempus mode line indicator."
   (let* ((raw (if (org-clock-is-active)
@@ -216,11 +233,15 @@ A session does not reset when switching tasks within
                                    (/ session-seconds 60.0)))
                          (session-str (if (>= session-seconds
                                               org-tempus-session-threshold-seconds)
-                                          (propertize session 'face 'org-tempus-session-face)
+                                         (propertize session 'face 'org-tempus-session-face)
                                         session)))
                     (org-tempus--maybe-notify-session-threshold session-seconds)
-                    (concat "⏳ [S " session-str
-                            " | T " (org-tempus--sum-today) "] ("
+                    (concat "⏳["
+                            (org-tempus--format-mode-line-item "S" session-str)
+                            (org-tempus--mode-line-separator)
+                            (org-tempus--format-mode-line-item
+                             "T" (org-tempus--sum-today))
+                            "] ("
                             (org-tempus--current-task-name)
                             " <" (org-tempus--current-task-time)
                             ">)"))
@@ -228,8 +249,14 @@ A session does not reset when switching tasks within
                        (break-str (when break-seconds
                                     (org-duration-from-minutes
                                      (/ break-seconds 60.0)))))
-                  (concat "⌛️ [T " (org-tempus--sum-today)
-                          (if break-str (concat " | B " break-str) "")
+                  (concat "⌛️["
+                          (org-tempus--format-mode-line-item
+                           "T" (org-tempus--sum-today))
+                          (if break-str
+                              (concat (org-tempus--mode-line-separator)
+                                      (org-tempus--format-mode-line-item
+                                       "B" break-str))
+                            "")
                           "]"))))
          (str (propertize raw
                           'mouse-face 'org-tempus-mode-line-hover-face
