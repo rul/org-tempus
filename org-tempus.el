@@ -1,4 +1,4 @@
-;;; org-tempus.el --- Org functions to track work hours  -*- lexical-binding: t; -*-
+;;; org-tempus.el --- Tracks work sessions and breaks at a glance  -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 2025  Raul Benencia
 
