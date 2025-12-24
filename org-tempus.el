@@ -173,7 +173,7 @@
   (org-duration-from-minutes (org-clock-get-clocked-time)))
 
 (defun org-tempus--update-session-start ()
-  "Update session start time, keeping short switches in the same session."
+  "Update session start time.  Keep a short task change within the same session."
   (when org-clock-start-time
     (let* ((last-out org-clock-out-time)
            (gap (and last-out
