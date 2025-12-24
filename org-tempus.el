@@ -80,6 +80,10 @@
 (defcustom org-tempus-show-legend t
   "When non-nil, show legend labels (S, T, B) in the mode line."
   :type 'boolean
+  :set (lambda (symbol value)
+         (set-default symbol value)
+         (when (bound-and-true-p org-tempus-mode)
+           (org-tempus--update-mode-line)))
   :group 'org-tempus)
 
 (defface org-tempus-session-face
