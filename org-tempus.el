@@ -77,6 +77,48 @@
   :type 'integer
   :group 'org-tempus)
 
+(defvar org-tempus--idle-timer nil
+  "Timer used to check session idle activity.")
+
+(defcustom org-tempus-idle-check-interval 10
+  "Seconds between idle checks for out-of-clock activity."
+  :type 'integer
+  :set (lambda (symbol value)
+         (set-default symbol value)
+         (when (bound-and-true-p org-tempus-mode)
+           (when (timerp org-tempus--idle-timer)
+             (cancel-timer org-tempus--idle-timer))
+           (setq org-tempus--idle-timer nil)
+           (when (> value 0)
+             (setq org-tempus--idle-timer
+                   (run-at-time value value #'org-tempus--maybe-notify-idle)))))
+  :group 'org-tempus)
+
+(defcustom org-tempus-idle-active-threshold-seconds 30
+  "Maximum idle seconds to consider the user active."
+  :type 'integer
+  :group 'org-tempus)
+
+(defcustom org-tempus-idle-active-streak-seconds 120
+  "Seconds of continuous activity before notifying."
+  :type 'integer
+  :group 'org-tempus)
+
+(defcustom org-tempus-idle-notify-cooldown-seconds 600
+  "Minimum seconds between idle notifications."
+  :type 'integer
+  :group 'org-tempus)
+
+(defcustom org-tempus-idle-provider 'emacs
+  "Provider used to query idle time.
+Known providers are `emacs' (activity inside Emacs),
+`mutter' (GNOME Mutter IdleMonitor), and
+`freedesktop-screensaver' (org.freedesktop.ScreenSaver)."
+  :type '(choice (const emacs)
+                 (const mutter)
+                 (const freedesktop-screensaver))
+  :group 'org-tempus)
+
 (defcustom org-tempus-show-legend t
   "When non-nil, show legend labels (S, T, B) in the mode line."
   :type 'boolean
@@ -114,6 +156,12 @@
 
 (defvar org-tempus--saved-org-clock-clocked-in-display nil
   "Saved value of `org-clock-clocked-in-display' while Org Tempus is enabled.")
+
+(defvar org-tempus--idle-active-streak 0
+  "Accumulated seconds of continuous active user presence.")
+
+(defvar org-tempus--last-idle-notify-time nil
+  "Last time an idle notification was sent.")
 
 (defvar org-tempus--session-start-time nil
   "Internal session start time as a value returned by `current-time'.")
@@ -229,6 +277,71 @@ A session does not reset when switching tasks within
       " | "
     "|"))
 
+(defun org-tempus--idle-seconds-from-emacs ()
+  "Return idle seconds based on Emacs input activity."
+  (let ((idle (current-idle-time)))
+    (if idle
+        (float-time idle)
+      0)))
+
+(defun org-tempus--idle-seconds-from-mutter ()
+  "Return idle seconds from GNOME Mutter's IdleMonitor."
+  (when (require 'dbus nil t)
+    (condition-case _err
+        (let ((idle-ms (dbus-call-method
+                        :session
+                        "org.gnome.Mutter.IdleMonitor"
+                        "/org/gnome/Mutter/IdleMonitor/Core"
+                        "org.gnome.Mutter.IdleMonitor"
+                        "GetIdletime")))
+          (when (numberp idle-ms)
+            (/ idle-ms 1000.0)))
+      (error nil))))
+
+(defun org-tempus--idle-seconds-from-freedesktop-screensaver ()
+  "Return idle seconds from org.freedesktop.ScreenSaver."
+  (when (require 'dbus nil t)
+    (condition-case _err
+        (let ((idle-ms (dbus-call-method
+                        :session
+                        "org.freedesktop.ScreenSaver"
+                        "/org/freedesktop/ScreenSaver"
+                        "org.freedesktop.ScreenSaver"
+                        "GetSessionIdleTime")))
+          (when (numberp idle-ms)
+            (/ idle-ms 1000.0)))
+      (error nil))))
+
+(defun org-tempus--session-idle-seconds ()
+  "Return session idle time in seconds or nil when unavailable."
+  (pcase org-tempus-idle-provider
+    ('emacs (org-tempus--idle-seconds-from-emacs))
+    ('mutter (org-tempus--idle-seconds-from-mutter))
+    ('freedesktop-screensaver
+     (org-tempus--idle-seconds-from-freedesktop-screensaver))
+    (_ nil)))
+
+(defun org-tempus--maybe-notify-idle ()
+  "Notify when user is active but no clock is running."
+  (let ((idle-seconds (org-tempus--session-idle-seconds)))
+    (when idle-seconds
+      (if (< idle-seconds org-tempus-idle-active-threshold-seconds)
+          (setq org-tempus--idle-active-streak
+                (+ org-tempus--idle-active-streak org-tempus-idle-check-interval))
+        (setq org-tempus--idle-active-streak 0))
+      (when (and (>= org-tempus--idle-active-streak
+                     org-tempus-idle-active-streak-seconds)
+                 (not (org-clock-is-active)))
+        (let* ((now (current-time))
+               (since (and org-tempus--last-idle-notify-time
+                           (float-time
+                            (time-subtract now org-tempus--last-idle-notify-time)))))
+          (when (or (not since)
+                    (>= since org-tempus-idle-notify-cooldown-seconds))
+            (setq org-tempus--last-idle-notify-time now)
+            (org-tempus--notify
+             "You seem active but no task is clocked in.")))))))
+
 (defun org-tempus--update-mode-line ()
   "Update the Org Tempus mode line indicator."
   (let* ((raw (if (org-clock-is-active)
@@ -291,6 +404,14 @@ A session does not reset when switching tasks within
       (add-hook 'org-clock-out-hook #'org-tempus--update-mode-line)
       (add-hook 'org-clock-out-hook #'org-tempus--hide-org-mode-line)
       (advice-add 'org-clock-update-mode-line :after #'org-tempus--maybe-hide-org-mode-line)
+      (when (timerp org-tempus--idle-timer)
+        (cancel-timer org-tempus--idle-timer))
+      (setq org-tempus--idle-timer nil)
+      (when (> org-tempus-idle-check-interval 0)
+        (setq org-tempus--idle-timer
+              (run-at-time org-tempus-idle-check-interval
+                           org-tempus-idle-check-interval
+                           #'org-tempus--maybe-notify-idle)))
       (when org-tempus-add-to-global-mode-string
         (or global-mode-string (setq global-mode-string '("")))
         (or (memq org-tempus--mode-line-format global-mode-string)
@@ -330,6 +451,9 @@ A session does not reset when switching tasks within
     (when (timerp org-tempus--timer)
       (cancel-timer org-tempus--timer))
     (setq org-tempus--timer nil)
+    (when (timerp org-tempus--idle-timer)
+      (cancel-timer org-tempus--idle-timer))
+    (setq org-tempus--idle-timer nil)
     (remove-hook 'org-clock-in-hook #'org-tempus--update-session-start)
     (remove-hook 'org-clock-in-hook #'org-tempus--update-mode-line)
     (remove-hook 'org-clock-in-hook #'org-tempus--hide-org-mode-line)
