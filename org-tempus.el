@@ -231,6 +231,18 @@ Known providers are `emacs' (activity inside Emacs),
   "Return clocked time for current task as a duration string."
   (org-duration-from-minutes (org-clock-get-clocked-time)))
 
+(defun org-tempus--current-task-effort ()
+  "Return effort for current task as a duration string, or nil."
+  (let ((marker (and (org-clock-is-active) org-clock-marker)))
+    (when (and marker (marker-buffer marker))
+      (with-current-buffer (marker-buffer marker)
+        (when (derived-mode-p 'org-mode)
+          (org-with-point-at marker
+            (let ((effort (org-entry-get nil "EFFORT")))
+              (when effort
+                (org-duration-from-minutes
+                 (org-duration-to-minutes effort))))))))))
+
 (defun org-tempus-reset-session ()
   "Reset the current session timer."
   (interactive)
@@ -396,6 +408,10 @@ A session does not reset when switching tasks within
                             "] ("
                             (org-tempus--current-task-name)
                             " <" (org-tempus--current-task-time)
+                            (let ((effort (org-tempus--current-task-effort)))
+                              (if effort
+                                  (concat "/" effort)
+                                ""))
                             ">)"))
                 (let* ((break-seconds (org-tempus--current-break-duration))
                        (break-str (when break-seconds
