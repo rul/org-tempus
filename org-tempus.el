@@ -91,12 +91,23 @@
            (setq org-tempus--idle-timer nil)
            (when (> value 0)
              (setq org-tempus--idle-timer
-                   (run-at-time value value #'org-tempus--maybe-notify-idle)))))
+                   (run-at-time value value #'org-tempus--handle-idle)))))
   :group 'org-tempus)
 
 (defcustom org-tempus-idle-active-threshold-seconds 30
   "Maximum idle seconds to consider the user active."
   :type 'integer
+  :group 'org-tempus)
+
+(defcustom org-tempus-idle-auto-clock-out-seconds 0
+  "Idle seconds after which to auto clock out.
+Set to 0 to disable auto clock-out."
+  :type 'integer
+  :group 'org-tempus)
+
+(defcustom org-tempus-idle-auto-clock-out-backdate t
+  "Whether to back-date auto clock-out by the idle duration."
+  :type 'boolean
   :group 'org-tempus)
 
 (defcustom org-tempus-idle-active-streak-seconds 120
@@ -331,10 +342,24 @@ A session does not reset when switching tasks within
      (org-tempus--idle-seconds-from-freedesktop-screensaver))
     (_ nil)))
 
-(defun org-tempus--maybe-notify-idle ()
-  "Notify when user is active but no clock is running."
+(defun org-tempus--handle-idle ()
+  "Handle idle checks, including auto clock-out and notifications."
   (let ((idle-seconds (org-tempus--session-idle-seconds)))
     (when idle-seconds
+      (when (and (org-clock-is-active)
+                 (> org-tempus-idle-auto-clock-out-seconds 0)
+                 (>= idle-seconds org-tempus-idle-auto-clock-out-seconds))
+        (if org-tempus-idle-auto-clock-out-backdate
+            (org-clock-out nil t (time-subtract (current-time)
+                                                (seconds-to-time idle-seconds)))
+          (org-clock-out nil t))
+        (setq org-tempus--session-start-time nil)
+        (setq org-tempus--session-threshold-notified nil)
+        (org-tempus--update-mode-line)
+        (org-tempus--notify
+         (format "Auto clocked out after %s idle."
+                 (org-duration-from-minutes
+                  (/ idle-seconds 60.0)))))
       (if (< idle-seconds org-tempus-idle-active-threshold-seconds)
           (setq org-tempus--idle-active-streak
                 (+ org-tempus--idle-active-streak org-tempus-idle-check-interval))
@@ -421,7 +446,7 @@ A session does not reset when switching tasks within
         (setq org-tempus--idle-timer
               (run-at-time org-tempus-idle-check-interval
                            org-tempus-idle-check-interval
-                           #'org-tempus--maybe-notify-idle)))
+                           #'org-tempus--handle-idle)))
       (when org-tempus-add-to-global-mode-string
         (or global-mode-string (setq global-mode-string '("")))
         (or (memq org-tempus--mode-line-format global-mode-string)
