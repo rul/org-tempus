@@ -220,6 +220,16 @@ Known providers are `emacs' (activity inside Emacs),
   "Return clocked time for current task as a duration string."
   (org-duration-from-minutes (org-clock-get-clocked-time)))
 
+(defun org-tempus-reset-session ()
+  "Reset the current session timer."
+  (interactive)
+  (setq org-tempus--session-threshold-notified nil)
+  (if (org-clock-is-active)
+      (setq org-tempus--session-start-time (current-time))
+    (setq org-tempus--session-start-time nil))
+  (org-tempus--update-mode-line)
+  (message "Org Tempus session reset."))
+
 (defun org-tempus--update-session-start ()
   "Update session start time.  Keep a short task change within the same session."
   (when org-clock-start-time
