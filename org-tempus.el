@@ -72,6 +72,16 @@
   :type 'integer
   :group 'org-tempus)
 
+(defcustom org-tempus-notification-cooldown-seconds 600
+  "Minimum seconds between break and idle notifications."
+  :type 'integer
+  :group 'org-tempus)
+
+(defcustom org-tempus-notification-max-count 3
+  "Maximum number of break or idle notifications."
+  :type 'integer
+  :group 'org-tempus)
+
 (defcustom org-tempus-break-threshold-seconds 10800
   "Maximum break seconds to display when no task is clocked in."
   :type 'integer
@@ -112,11 +122,6 @@ Set to 0 to disable auto clock-out."
 
 (defcustom org-tempus-idle-active-streak-seconds 120
   "Seconds of continuous activity before notifying."
-  :type 'integer
-  :group 'org-tempus)
-
-(defcustom org-tempus-idle-notify-cooldown-seconds 600
-  "Minimum seconds between idle notifications."
   :type 'integer
   :group 'org-tempus)
 
@@ -171,14 +176,11 @@ Known providers are `emacs' (activity inside Emacs),
 (defvar org-tempus--idle-active-streak 0
   "Accumulated seconds of continuous active user presence.")
 
-(defvar org-tempus--last-idle-notify-time nil
-  "Last time an idle notification was sent.")
-
 (defvar org-tempus--session-start-time nil
   "Internal session start time as a value returned by `current-time'.")
 
-(defvar org-tempus--session-threshold-notified nil
-  "Internal flag indicating the session threshold notification was sent.")
+(defvar org-tempus--notification-state nil
+  "Plist storing notification state for notifications.")
 
 (defun org-tempus--hide-org-mode-line ()
   "Hide the stock Org mode line indicator while Org Tempus is active."
@@ -246,16 +248,42 @@ Known providers are `emacs' (activity inside Emacs),
 (defun org-tempus-reset-session ()
   "Reset the current session timer."
   (interactive)
-  (setq org-tempus--session-threshold-notified nil)
+  (org-tempus--reset-notification-state)
   (if (org-clock-is-active)
       (setq org-tempus--session-start-time (current-time))
     (setq org-tempus--session-start-time nil))
   (org-tempus--update-mode-line)
   (message "Org Tempus session reset."))
 
+(defun org-tempus--reset-notification-state ()
+  "Reset notification state."
+  (setq org-tempus--notification-state nil))
+
+(defun org-tempus--notification-allowed-p ()
+  "Return non-nil when a notification can be sent."
+  (let* ((state org-tempus--notification-state)
+         (count (plist-get state :count))
+         (last (plist-get state :last-time))
+         (max-count org-tempus-notification-max-count)
+         (cooldown org-tempus-notification-cooldown-seconds)
+         (since (and last
+                     (float-time (time-subtract (current-time) last)))))
+    (and (> max-count 0)
+         (< (or count 0) max-count)
+         (or (not last) (>= since cooldown)))))
+
+(defun org-tempus--record-notification ()
+  "Record a notification."
+  (let* ((state org-tempus--notification-state)
+         (count (1+ (or (plist-get state :count) 0))))
+    (setq org-tempus--notification-state
+          (plist-put (plist-put (or state nil) :count count)
+                     :last-time (current-time)))))
+
 (defun org-tempus--update-session-start ()
   "Update session start time.  Keep a short task change within the same session."
   (when org-clock-start-time
+    (org-tempus--reset-notification-state)
     (let* ((last-out org-clock-out-time)
            (gap (and last-out
                      (float-time (time-subtract org-clock-start-time last-out)))))
@@ -265,7 +293,7 @@ Known providers are `emacs' (activity inside Emacs),
                      (<= gap org-tempus-session-gap-seconds))
                 (or org-tempus--session-start-time org-clock-start-time)
               (progn
-                (setq org-tempus--session-threshold-notified nil)
+                (org-tempus--reset-notification-state)
                 org-clock-start-time))))))
 
 (defun org-tempus--current-session-duration ()
@@ -282,8 +310,8 @@ A session does not reset when switching tasks within
 (defun org-tempus--maybe-notify-session-threshold (session-seconds)
   "Send a one-time notification when SESSION-SECONDS crosses threshold."
   (when (and (>= session-seconds org-tempus-session-threshold-seconds)
-             (not org-tempus--session-threshold-notified))
-    (setq org-tempus--session-threshold-notified t)
+             (org-tempus--notification-allowed-p))
+    (org-tempus--record-notification)
     (let ((msg (format "Org Tempus session reached %s"
                        (org-duration-from-minutes
                         (/ session-seconds 60.0)))))
@@ -366,7 +394,7 @@ A session does not reset when switching tasks within
                                                 (seconds-to-time idle-seconds)))
           (org-clock-out nil t))
         (setq org-tempus--session-start-time nil)
-        (setq org-tempus--session-threshold-notified nil)
+        (org-tempus--reset-notification-state)
         (org-tempus--update-mode-line)
         (org-tempus--notify
          (format "Auto clocked out after %s idle."
@@ -379,15 +407,10 @@ A session does not reset when switching tasks within
       (when (and (>= org-tempus--idle-active-streak
                      org-tempus-idle-active-streak-seconds)
                  (not (org-clock-is-active)))
-        (let* ((now (current-time))
-               (since (and org-tempus--last-idle-notify-time
-                           (float-time
-                            (time-subtract now org-tempus--last-idle-notify-time)))))
-          (when (or (not since)
-                    (>= since org-tempus-idle-notify-cooldown-seconds))
-            (setq org-tempus--last-idle-notify-time now)
-            (org-tempus--notify
-             "You seem active but no task is clocked in.")))))))
+        (when (org-tempus--notification-allowed-p)
+          (org-tempus--record-notification)
+          (org-tempus--notify
+           "You seem active but no task is clocked in."))))))
 
 (defun org-tempus--update-mode-line ()
   "Update the Org Tempus mode line indicator."
@@ -450,8 +473,10 @@ A session does not reset when switching tasks within
                          org-tempus-update-interval
                          #'org-tempus--update-mode-line))
       (add-hook 'org-clock-in-hook #'org-tempus--update-session-start)
+      (add-hook 'org-clock-in-hook #'org-tempus--reset-notification-state)
       (add-hook 'org-clock-in-hook #'org-tempus--update-mode-line t)
       (add-hook 'org-clock-in-hook #'org-tempus--hide-org-mode-line t)
+      (add-hook 'org-clock-out-hook #'org-tempus--reset-notification-state)
       (add-hook 'org-clock-out-hook #'org-tempus--update-mode-line)
       (add-hook 'org-clock-out-hook #'org-tempus--hide-org-mode-line)
       (advice-add 'org-clock-update-mode-line :after #'org-tempus--maybe-hide-org-mode-line)
@@ -506,10 +531,12 @@ A session does not reset when switching tasks within
       (cancel-timer org-tempus--idle-timer))
     (setq org-tempus--idle-timer nil)
     (remove-hook 'org-clock-in-hook #'org-tempus--update-session-start)
+    (remove-hook 'org-clock-in-hook #'org-tempus--reset-notification-state)
     (remove-hook 'org-clock-in-hook #'org-tempus--update-mode-line)
     (remove-hook 'org-clock-in-hook #'org-tempus--hide-org-mode-line)
     (remove-hook 'org-clock-out-hook #'org-tempus--hide-org-mode-line)
     (remove-hook 'org-clock-out-hook #'org-tempus--update-mode-line)
+    (remove-hook 'org-clock-out-hook #'org-tempus--reset-notification-state)
     (advice-remove 'org-clock-update-mode-line #'org-tempus--maybe-hide-org-mode-line)))
 
 (provide 'org-tempus)
