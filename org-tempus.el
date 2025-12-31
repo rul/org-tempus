@@ -90,7 +90,7 @@
 (defvar org-tempus--idle-timer nil
   "Timer used to check session idle activity.")
 
-(defcustom org-tempus-idle-check-interval 10
+(defcustom org-tempus-idle-check-interval 60
   "Seconds between idle checks for out-of-clock activity."
   :type 'integer
   :set (lambda (symbol value)
@@ -104,7 +104,7 @@
                    (run-at-time value value #'org-tempus--handle-idle)))))
   :group 'org-tempus)
 
-(defcustom org-tempus-idle-active-threshold-seconds 30
+(defcustom org-tempus-idle-active-threshold-seconds 60
   "Maximum idle seconds to consider the user active."
   :type 'integer
   :group 'org-tempus)
@@ -257,7 +257,8 @@ Known providers are `emacs' (activity inside Emacs),
 
 (defun org-tempus--reset-notification-state ()
   "Reset notification state."
-  (setq org-tempus--notification-state nil))
+  (setq org-tempus--notification-state nil)
+  (setq org-tempus--idle-active-streak 0))
 
 (defun org-tempus--notification-allowed-p ()
   "Return non-nil when a notification can be sent."
@@ -466,6 +467,7 @@ A session does not reset when switching tasks within
   :global t
   (if org-tempus-mode
       (progn
+      (org-tempus--reset-notification-state)
       (when (timerp org-tempus--timer)
         (cancel-timer org-tempus--timer))
       (setq org-tempus--timer
