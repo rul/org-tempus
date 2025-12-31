@@ -82,6 +82,52 @@
   :type 'integer
   :group 'org-tempus)
 
+(defun org-tempus--stop-timers ()
+  "Stop Org Tempus timers."
+  (when (timerp org-tempus--timer)
+    (cancel-timer org-tempus--timer))
+  (setq org-tempus--timer nil)
+  (when (timerp org-tempus--idle-timer)
+    (cancel-timer org-tempus--idle-timer))
+  (setq org-tempus--idle-timer nil)
+  (when (timerp org-tempus--notification-reset-timer)
+    (cancel-timer org-tempus--notification-reset-timer))
+  (setq org-tempus--notification-reset-timer nil))
+
+(defun org-tempus--start-timers ()
+  "Start Org Tempus timers."
+  (org-tempus--stop-timers)
+  (setq org-tempus--timer
+        (run-at-time org-tempus-update-interval
+                     org-tempus-update-interval
+                     #'org-tempus--update-mode-line))
+  (when (> org-tempus-idle-check-interval 0)
+    (setq org-tempus--idle-timer
+          (run-at-time org-tempus-idle-check-interval
+                       org-tempus-idle-check-interval
+                       #'org-tempus--handle-idle)))
+  (when (> org-tempus-notification-reset-seconds 0)
+    (setq org-tempus--notification-reset-timer
+          (run-at-time org-tempus-notification-reset-seconds
+                       org-tempus-notification-reset-seconds
+                       #'org-tempus--reset-notification-state))))
+
+(defun org-tempus--restart-timers ()
+  "Restart Org Tempus timers."
+  (org-tempus--start-timers))
+
+(defvar org-tempus--notification-reset-timer nil
+  "Timer used to reset notification streaks.")
+
+(defcustom org-tempus-notification-reset-seconds 3600
+  "Seconds after which notification streaks reset."
+  :type 'integer
+  :set (lambda (symbol value)
+         (set-default symbol value)
+         (when (bound-and-true-p org-tempus-mode)
+           (org-tempus--restart-timers)))
+  :group 'org-tempus)
+
 (defcustom org-tempus-break-threshold-seconds 10800
   "Maximum break seconds to display when no task is clocked in."
   :type 'integer
@@ -96,12 +142,7 @@
   :set (lambda (symbol value)
          (set-default symbol value)
          (when (bound-and-true-p org-tempus-mode)
-           (when (timerp org-tempus--idle-timer)
-             (cancel-timer org-tempus--idle-timer))
-           (setq org-tempus--idle-timer nil)
-           (when (> value 0)
-             (setq org-tempus--idle-timer
-                   (run-at-time value value #'org-tempus--handle-idle)))))
+           (org-tempus--restart-timers)))
   :group 'org-tempus)
 
 (defcustom org-tempus-idle-active-threshold-seconds 60
@@ -259,6 +300,7 @@ Known providers are `emacs' (activity inside Emacs),
   "Reset notification state."
   (setq org-tempus--notification-state nil)
   (setq org-tempus--idle-active-streak 0))
+
 
 (defun org-tempus--notification-allowed-p ()
   "Return non-nil when a notification can be sent."
@@ -468,12 +510,7 @@ A session does not reset when switching tasks within
   (if org-tempus-mode
       (progn
       (org-tempus--reset-notification-state)
-      (when (timerp org-tempus--timer)
-        (cancel-timer org-tempus--timer))
-      (setq org-tempus--timer
-            (run-at-time org-tempus-update-interval
-                         org-tempus-update-interval
-                         #'org-tempus--update-mode-line))
+      (org-tempus--start-timers)
       (add-hook 'org-clock-in-hook #'org-tempus--update-session-start)
       (add-hook 'org-clock-in-hook #'org-tempus--reset-notification-state)
       (add-hook 'org-clock-in-hook #'org-tempus--update-mode-line t)
@@ -482,14 +519,6 @@ A session does not reset when switching tasks within
       (add-hook 'org-clock-out-hook #'org-tempus--update-mode-line)
       (add-hook 'org-clock-out-hook #'org-tempus--hide-org-mode-line)
       (advice-add 'org-clock-update-mode-line :after #'org-tempus--maybe-hide-org-mode-line)
-      (when (timerp org-tempus--idle-timer)
-        (cancel-timer org-tempus--idle-timer))
-      (setq org-tempus--idle-timer nil)
-      (when (> org-tempus-idle-check-interval 0)
-        (setq org-tempus--idle-timer
-              (run-at-time org-tempus-idle-check-interval
-                           org-tempus-idle-check-interval
-                           #'org-tempus--handle-idle)))
       (when org-tempus-add-to-global-mode-string
         (or global-mode-string (setq global-mode-string '("")))
         (or (memq org-tempus--mode-line-format global-mode-string)
@@ -526,12 +555,7 @@ A session does not reset when switching tasks within
               (delq 'org-mode-line-string global-mode-string))
         (setq org-mode-line-string "")
         (force-mode-line-update)))
-    (when (timerp org-tempus--timer)
-      (cancel-timer org-tempus--timer))
-    (setq org-tempus--timer nil)
-    (when (timerp org-tempus--idle-timer)
-      (cancel-timer org-tempus--idle-timer))
-    (setq org-tempus--idle-timer nil)
+    (org-tempus--stop-timers)
     (remove-hook 'org-clock-in-hook #'org-tempus--update-session-start)
     (remove-hook 'org-clock-in-hook #'org-tempus--reset-notification-state)
     (remove-hook 'org-clock-in-hook #'org-tempus--update-mode-line)
