@@ -62,6 +62,21 @@
   :type 'integer
   :group 'org-tempus)
 
+(defvar org-tempus--last-dconf-value nil
+  "Last string posted to dconf, to avoid redundant updates.")
+
+(defcustom org-tempus-dconf-path nil
+  "When non-nil, post the Org Tempus mode line string to this dconf path.
+The value is a string like:
+\"/org/gnome/shell/extensions/simple-message/message\"."
+  :type '(choice (const :tag "Disabled" nil) string)
+  :set (lambda (symbol value)
+         (set-default symbol value)
+         (setq org-tempus--last-dconf-value nil)
+         (when (bound-and-true-p org-tempus-mode)
+           (org-tempus--update-mode-line)))
+  :group 'org-tempus)
+
 (defcustom org-tempus-session-gap-seconds 60
   "Maximum gap in seconds to consider consecutive clocks the same session."
   :type 'integer
@@ -455,6 +470,23 @@ A session does not reset when switching tasks within
           (org-tempus--notify
            "You seem active but no task is clocked in."))))))
 
+(defun org-tempus--gvariant-string (value)
+  "Return VALUE as a quoted GVariant string literal."
+  (concat "'" (replace-regexp-in-string "['\\\\]" "\\\\\\&" value) "'"))
+
+(defun org-tempus--maybe-update-dconf (&optional value)
+  "Update dconf with VALUE when `org-tempus-dconf-path' is set."
+  (when (and org-tempus-dconf-path
+             (stringp org-tempus-dconf-path)
+             (> (length org-tempus-dconf-path) 0)
+             (executable-find "dconf"))
+    (let ((value (or value "")))
+      (when (not (equal value org-tempus--last-dconf-value))
+        (setq org-tempus--last-dconf-value value)
+        (call-process "dconf" nil 0 nil
+                      "write" org-tempus-dconf-path
+                      (org-tempus--gvariant-string value))))))
+
 (defun org-tempus--update-mode-line ()
   "Update the Org Tempus mode line indicator."
   (let* ((raw (if (org-clock-is-active)
@@ -500,6 +532,8 @@ A session does not reset when switching tasks within
                           'pointer 'hand)))
     (add-face-text-property 0 (length str) 'org-tempus-mode-line-face 'append str)
     (setq org-tempus-mode-line-string str))
+  (org-tempus--maybe-update-dconf
+   (substring-no-properties org-tempus-mode-line-string))
   (force-mode-line-update))
 
 ;;;###autoload
@@ -555,6 +589,9 @@ A session does not reset when switching tasks within
               (delq 'org-mode-line-string global-mode-string))
         (setq org-mode-line-string "")
         (force-mode-line-update)))
+    (when org-tempus-dconf-path
+      (setq org-tempus--last-dconf-value nil)
+      (org-tempus--maybe-update-dconf ""))
     (org-tempus--stop-timers)
     (remove-hook 'org-clock-in-hook #'org-tempus--update-session-start)
     (remove-hook 'org-clock-in-hook #'org-tempus--reset-notification-state)
