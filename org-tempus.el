@@ -150,6 +150,11 @@
   :type 'integer
   :group 'org-tempus)
 
+(defcustom org-tempus-idle-active-streak-seconds 120
+  "Seconds of continuous activity before notifying to clock-in."
+  :type 'integer
+  :group 'org-tempus)
+
 (defcustom org-tempus-idle-auto-clock-out-seconds 0
   "Idle seconds after which to auto clock out.
 Set to 0 to disable auto clock-out."
@@ -159,11 +164,6 @@ Set to 0 to disable auto clock-out."
 (defcustom org-tempus-idle-auto-clock-out-backdate t
   "Whether to back-date auto clock-out by the idle duration."
   :type 'boolean
-  :group 'org-tempus)
-
-(defcustom org-tempus-idle-active-streak-seconds 120
-  "Seconds of continuous activity before notifying."
-  :type 'integer
   :group 'org-tempus)
 
 (defcustom org-tempus-idle-provider 'emacs
