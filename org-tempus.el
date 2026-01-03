@@ -92,6 +92,16 @@ The value is a string like:
   :type 'integer
   :group 'org-tempus)
 
+(defcustom org-tempus-notification-timeout-ms 5000
+  "Milliseconds before notifications expire. Set to 0 to use defaults."
+  :type 'integer
+  :group 'org-tempus)
+
+(defcustom org-tempus-notification-replace t
+  "When non-nil, reuse a single notification instead of stacking them."
+  :type 'boolean
+  :group 'org-tempus)
+
 (defcustom org-tempus-notification-max-count 3
   "Maximum number of break or idle notifications."
   :type 'integer
@@ -251,6 +261,9 @@ Known providers are `emacs' (activity inside Emacs),
 (defvar org-tempus--notification-state nil
   "Plist storing notification state for notifications.")
 
+(defvar org-tempus--notification-id nil
+  "Notification id used to replace existing notifications.")
+
 (defun org-tempus--hide-org-mode-line ()
   "Hide the stock Org mode line indicator while Org Tempus is active."
   (when org-tempus-hide-org-mode-line-string
@@ -274,7 +287,14 @@ Known providers are `emacs' (activity inside Emacs),
       (setq sent
             (condition-case err
                 (progn
-                  (notifications-notify :title "Org Tempus" :body msg)
+                  (setq org-tempus--notification-id
+                        (notifications-notify
+                         :title "Org Tempus"
+                         :body msg
+                         :timeout (when (> org-tempus-notification-timeout-ms 0)
+                                    org-tempus-notification-timeout-ms)
+                         :replaces-id (when org-tempus-notification-replace
+                                        org-tempus--notification-id)))
                   t)
               (error
                (message "Org Tempus notification error: %s" err)
