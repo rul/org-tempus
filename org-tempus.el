@@ -82,8 +82,13 @@ The value is a string like:
   :type 'integer
   :group 'org-tempus)
 
-(defcustom org-tempus-session-threshold-seconds 1800
-  "Seconds of continuous session after which a notification is sent."
+(defcustom org-tempus-session-threshold-minutes 30
+  "Minutes of continuous session after which a notification is sent."
+  :type 'integer
+  :group 'org-tempus)
+
+(defcustom org-tempus-total-threshold-minutes 300
+  "Minutes clocked today after which a notification is sent."
   :type 'integer
   :group 'org-tempus)
 
@@ -261,6 +266,9 @@ Known providers are `emacs' (activity inside Emacs),
 (defvar org-tempus--notification-state nil
   "Plist storing notification state for notifications.")
 
+(defvar org-tempus--total-threshold-notified-date nil
+  "Date string of last total threshold notification.")
+
 (defvar org-tempus--notification-id nil
   "Notification id used to replace existing notifications.")
 
@@ -308,6 +316,10 @@ Known providers are `emacs' (activity inside Emacs),
 
 (defun org-tempus--sum-today ()
   "Return total time clocked today across agenda files as a duration string."
+  (org-duration-from-minutes (org-tempus--sum-today-minutes)))
+
+(defun org-tempus--sum-today-minutes ()
+  "Return total time clocked today across agenda files in minutes."
   (let* ((range (org-clock-special-range 'today nil t))
          (tstart (nth 0 range))
          (tend (nth 1 range))
@@ -316,14 +328,24 @@ Known providers are `emacs' (activity inside Emacs),
       (when (file-exists-p file)
         (with-current-buffer (find-file-noselect file)
           (setq total (+ total (org-clock-sum tstart tend))))))
-    (org-duration-from-minutes total)))
+    total))
 
 (defun org-tempus--current-task-time ()
   "Return clocked time for current task as a duration string."
-  (org-duration-from-minutes (org-clock-get-clocked-time)))
+  (org-duration-from-minutes (org-tempus--current-task-time-minutes)))
+
+(defun org-tempus--current-task-time-minutes ()
+  "Return clocked time for current task in minutes."
+  (org-clock-get-clocked-time))
 
 (defun org-tempus--current-task-effort ()
   "Return effort for current task as a duration string, or nil."
+  (let ((minutes (org-tempus--current-task-effort-minutes)))
+    (when minutes
+      (org-duration-from-minutes minutes))))
+
+(defun org-tempus--current-task-effort-minutes ()
+  "Return effort for current task in minutes, or nil."
   (let ((marker (and (org-clock-is-active) org-clock-marker)))
     (when (and marker (marker-buffer marker))
       (with-current-buffer (marker-buffer marker)
@@ -331,8 +353,7 @@ Known providers are `emacs' (activity inside Emacs),
           (org-with-point-at marker
             (let ((effort (org-entry-get nil "EFFORT")))
               (when effort
-                (org-duration-from-minutes
-                 (org-duration-to-minutes effort))))))))))
+                (org-duration-to-minutes effort)))))))))
 
 (defun org-tempus-reset-session ()
   "Reset the current session timer."
@@ -405,13 +426,27 @@ A session does not reset when switching tasks within
 
 (defun org-tempus--maybe-notify-session-threshold (session-seconds)
   "Send a one-time notification when SESSION-SECONDS crosses threshold."
-  (when (and (>= session-seconds org-tempus-session-threshold-seconds)
+  (when (and (>= session-seconds (* 60 org-tempus-session-threshold-minutes))
              (org-tempus--notification-allowed-p))
     (org-tempus--record-notification)
     (let ((msg (format "Org Tempus session reached %s"
                        (org-duration-from-minutes
                         (/ session-seconds 60.0)))))
       (org-tempus--notify msg))))
+
+(defun org-tempus--maybe-notify-total-threshold (total-seconds)
+  "Send a one-time notification when TOTAL-SECONDS crosses threshold."
+  (let ((today (format-time-string "%F")))
+    (when (and (> org-tempus-total-threshold-minutes 0)
+               (>= total-seconds (* 60 org-tempus-total-threshold-minutes))
+               (not (equal org-tempus--total-threshold-notified-date today))
+               (org-tempus--notification-allowed-p))
+      (setq org-tempus--total-threshold-notified-date today)
+      (org-tempus--record-notification)
+      (let ((msg (format "Org Tempus total reached %s today"
+                         (org-duration-from-minutes
+                          (/ total-seconds 60.0)))))
+        (org-tempus--notify msg)))))
 
 (defun org-tempus--current-break-duration ()
   "Return break duration in seconds, or nil when not applicable."
@@ -543,12 +578,21 @@ Return non-nil when an auto clock-in occurs."
 
 (defun org-tempus--update-mode-line ()
   "Update the Org Tempus mode line indicator."
-  (let* ((raw (if (org-clock-is-active)
+  (let* ((total-minutes (org-tempus--sum-today-minutes))
+         (total-seconds (* 60 total-minutes))
+         (total-threshold-hit (and (> org-tempus-total-threshold-minutes 0)
+                                   (>= total-seconds
+                                       (* 60 org-tempus-total-threshold-minutes))))
+         (total-str (org-duration-from-minutes total-minutes))
+         (total-display (if total-threshold-hit
+                            (propertize total-str 'face 'org-tempus-session-face)
+                          total-str))
+         (raw (if (org-clock-is-active)
                   (let* ((session-seconds (org-tempus--current-session-duration))
                          (session (org-duration-from-minutes
                                    (/ session-seconds 60.0)))
                          (session-str (if (>= session-seconds
-                                              org-tempus-session-threshold-seconds)
+                                              (* 60 org-tempus-session-threshold-minutes))
                                          (propertize session 'face 'org-tempus-session-face)
                                         session)))
                     (org-tempus--maybe-notify-session-threshold session-seconds)
@@ -556,22 +600,30 @@ Return non-nil when an auto clock-in occurs."
                             (org-tempus--format-mode-line-item "S" session-str)
                             (org-tempus--mode-line-separator)
                             (org-tempus--format-mode-line-item
-                             "T" (org-tempus--sum-today))
+                             "T" total-display)
                             "] ("
                             (org-tempus--current-task-name)
-                            " <" (org-tempus--current-task-time)
-                            (let ((effort (org-tempus--current-task-effort)))
-                              (if effort
-                                  (concat "/" effort)
-                                ""))
-                            ">)"))
+                            (let* ((task-minutes (org-tempus--current-task-time-minutes))
+                                   (task-time (org-duration-from-minutes task-minutes))
+                                   (effort-minutes (org-tempus--current-task-effort-minutes))
+                                   (effort (when effort-minutes
+                                             (org-duration-from-minutes effort-minutes)))
+                                   (task-display (if (and effort-minutes
+                                                          (>= task-minutes effort-minutes))
+                                                     (propertize task-time 'face 'org-tempus-session-face)
+                                                   task-time)))
+                              (concat " <" task-display
+                                      (if effort
+                                          (concat "/" effort)
+                                        "")
+                                      ">"))))
                 (let* ((break-seconds (org-tempus--current-break-duration))
                        (break-str (when break-seconds
                                     (org-duration-from-minutes
                                      (/ break-seconds 60.0)))))
                   (concat "⌛️["
                           (org-tempus--format-mode-line-item
-                           "T" (org-tempus--sum-today))
+                           "T" total-display)
                           (if break-str
                               (concat (org-tempus--mode-line-separator)
                                       (org-tempus--format-mode-line-item
@@ -584,6 +636,7 @@ Return non-nil when an auto clock-in occurs."
                           'keymap org-tempus--mode-line-map
                           'help-echo "Org Tempus"
                           'pointer 'hand)))
+    (org-tempus--maybe-notify-total-threshold total-seconds)
     (add-face-text-property 0 (length str) 'org-tempus-mode-line-face 'append str)
     (setq org-tempus-mode-line-string str))
   (org-tempus--maybe-update-dconf
