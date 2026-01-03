@@ -151,6 +151,9 @@ The value is a string like:
 (defvar org-tempus--idle-timer nil
   "Timer used to check session idle activity.")
 
+(defvar org-tempus--auto-clock-out-time nil
+  "Time when Org Tempus last auto clocked out.")
+
 (defcustom org-tempus-idle-check-interval 60
   "Seconds between idle checks for out-of-clock activity."
   :type 'integer
@@ -179,6 +182,16 @@ Set to 0 to disable auto clock-out."
 (defcustom org-tempus-idle-auto-clock-out-backdate t
   "Whether to back-date auto clock-out by the idle duration."
   :type 'boolean
+  :group 'org-tempus)
+
+(defcustom org-tempus-idle-auto-clock-in nil
+  "When non-nil, auto clock in after activity if Org Tempus auto clocked out."
+  :type 'boolean
+  :group 'org-tempus)
+
+(defcustom org-tempus-idle-auto-clock-in-window-minutes 120
+  "Minutes after auto clock-out during which auto clock-in is allowed."
+  :type 'integer
   :group 'org-tempus)
 
 (defcustom org-tempus-idle-provider 'emacs
@@ -316,6 +329,11 @@ Known providers are `emacs' (activity inside Emacs),
   (setq org-tempus--notification-state nil)
   (setq org-tempus--idle-active-streak 0))
 
+(defun org-tempus--reset-auto-clock-state ()
+  "Reset auto clock-in/out related state."
+  (setq org-tempus--auto-clock-out-time nil)
+  (org-tempus--reset-notification-state))
+
 
 (defun org-tempus--notification-allowed-p ()
   "Return non-nil when a notification can be sent."
@@ -341,7 +359,7 @@ Known providers are `emacs' (activity inside Emacs),
 (defun org-tempus--update-session-start ()
   "Update session start time.  Keep a short task change within the same session."
   (when org-clock-start-time
-    (org-tempus--reset-notification-state)
+    (org-tempus--reset-auto-clock-state)
     (let* ((last-out org-clock-out-time)
            (gap (and last-out
                      (float-time (time-subtract org-clock-start-time last-out)))))
@@ -447,6 +465,7 @@ A session does not reset when switching tasks within
       (when (and (org-clock-is-active)
                  (> org-tempus-idle-auto-clock-out-seconds 0)
                  (>= idle-seconds org-tempus-idle-auto-clock-out-seconds))
+        (setq org-tempus--auto-clock-out-time (current-time))
         (if org-tempus-idle-auto-clock-out-backdate
             (org-clock-out nil t (time-subtract (current-time)
                                                 (seconds-to-time idle-seconds)))
@@ -465,14 +484,29 @@ A session does not reset when switching tasks within
       (when (and (>= org-tempus--idle-active-streak
                      org-tempus-idle-active-streak-seconds)
                  (not (org-clock-is-active)))
-        (when (org-tempus--notification-allowed-p)
-          (org-tempus--record-notification)
-          (org-tempus--notify
-           "You seem active but no task is clocked in."))))))
+        (unless (org-tempus--maybe-auto-clock-in)
+          (when (org-tempus--notification-allowed-p)
+            (org-tempus--record-notification)
+            (org-tempus--notify
+             "You seem active but no task is clocked in.")))))))
 
 (defun org-tempus--gvariant-string (value)
   "Return VALUE as a quoted GVariant string literal."
   (concat "'" (replace-regexp-in-string "['\\\\]" "\\\\\\&" value) "'"))
+
+(defun org-tempus--maybe-auto-clock-in ()
+  "Auto clock in to the last task if eligible.
+Return non-nil when an auto clock-in occurs."
+  (when (and org-tempus-idle-auto-clock-in
+             org-tempus--auto-clock-out-time
+             (not (org-clock-is-active)))
+    (let ((since (float-time (time-subtract (current-time)
+                                            org-tempus--auto-clock-out-time))))
+      (when (<= since (* 60 org-tempus-idle-auto-clock-in-window-minutes))
+        (org-clock-in-last)
+        (org-tempus--reset-auto-clock-state)
+        (org-tempus--notify "Auto clocked in to your last task.")
+        t))))
 
 (defun org-tempus--maybe-update-dconf (&optional value)
   "Update dconf with VALUE when `org-tempus-dconf-path' is set."
