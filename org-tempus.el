@@ -199,29 +199,29 @@ The value is a string like:
   :type 'boolean
   :group 'org-tempus)
 
-(defcustom org-tempus-idle-auto-clock-out-seconds 300
+(defcustom org-tempus-auto-clock-out-seconds 300
   "Idle seconds after which to auto clock out.
 Set to 0 to disable auto clock-out."
   :type 'integer
   :group 'org-tempus)
 
-(defcustom org-tempus-idle-auto-clock-out-backdate t
+(defcustom org-tempus-auto-clock-out-backdate t
   "Whether to back-date auto clock-out by the idle duration."
   :type 'boolean
   :group 'org-tempus)
 
-(defcustom org-tempus-idle-auto-clock-in t
-  "When non-nil, auto clock in after activity if Org Tempus auto clocked out."
+(defcustom org-tempus-auto-clock-in-last t
+  "When non-nil, auto clock in to the last task after activity."
   :type 'boolean
   :group 'org-tempus)
 
-(defcustom org-tempus-idle-auto-clock-in-window-minutes 120
+(defcustom org-tempus-auto-clock-in-window-minutes 120
   "Minutes after auto clock-out during which auto clock-in to old task is
 allowed."
   :type 'integer
   :group 'org-tempus)
 
-(defcustom org-tempus-default-task-id nil
+(defcustom org-tempus-auto-clock-default-task-id nil
   "Org ID of the default task used for auto clock-in.
 You can set this by running `org-id-get-create' on a heading and
 assigning the resulting ID to this variable."
@@ -563,10 +563,10 @@ A session does not reset when switching tasks within
     (when idle-seconds
       (when (and org-tempus-auto-clock-enabled
                  (org-clock-is-active)
-                 (> org-tempus-idle-auto-clock-out-seconds 0)
-                 (>= idle-seconds org-tempus-idle-auto-clock-out-seconds))
+                 (> org-tempus-auto-clock-out-seconds 0)
+                 (>= idle-seconds org-tempus-auto-clock-out-seconds))
         (setq org-tempus--auto-clock-out-time (current-time))
-        (if org-tempus-idle-auto-clock-out-backdate
+        (if org-tempus-auto-clock-out-backdate
             (org-clock-out nil t (time-subtract (current-time)
                                                 (seconds-to-time idle-seconds)))
           (org-clock-out nil t))
@@ -599,12 +599,12 @@ A session does not reset when switching tasks within
   "Auto clock in to the last task if eligible.
 Return non-nil when an auto clock-in occurs."
   (when (and org-tempus-auto-clock-enabled
-             org-tempus-idle-auto-clock-in
+             org-tempus-auto-clock-in-last
              org-tempus--auto-clock-out-time
              (not (org-clock-is-active)))
     (let ((since (float-time (time-subtract (current-time)
                                             org-tempus--auto-clock-out-time))))
-      (when (<= since (* 60 org-tempus-idle-auto-clock-in-window-minutes))
+      (when (<= since (* 60 org-tempus-auto-clock-in-window-minutes))
         (org-clock-in-last)
         (org-tempus--reset-auto-clock-state)
         (org-tempus--notify "Auto clocked in to your last task.")
@@ -614,9 +614,9 @@ Return non-nil when an auto clock-in occurs."
   "Auto clock in to the default task if eligible.
 Return non-nil when an auto clock-in occurs."
   (when (and org-tempus-auto-clock-enabled
-             org-tempus-default-task-id
+             org-tempus-auto-clock-default-task-id
              (not (org-clock-is-active)))
-    (let ((marker (org-id-find org-tempus-default-task-id 'marker)))
+    (let ((marker (org-id-find org-tempus-auto-clock-default-task-id 'marker)))
       (when (and marker (marker-buffer marker))
         (with-current-buffer (marker-buffer marker)
           (org-with-point-at marker
