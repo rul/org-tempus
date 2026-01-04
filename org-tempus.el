@@ -97,6 +97,11 @@ The value is a string like:
   :type 'integer
   :group 'org-tempus)
 
+(defcustom org-tempus-notifications-enabled t
+  "When non-nil, send notifications."
+  :type 'boolean
+  :group 'org-tempus)
+
 (defcustom org-tempus-notification-timeout-ms 5000
   "Milliseconds before notifications expire. Set to 0 to use defaults."
   :type 'integer
@@ -204,6 +209,11 @@ Set to 0 to disable auto clock-out."
   :type 'boolean
   :group 'org-tempus)
 
+(defcustom org-tempus-auto-clock-enabled t
+  "When non-nil, allow Org Tempus auto clock in/out."
+  :type 'boolean
+  :group 'org-tempus)
+
 (defcustom org-tempus-idle-auto-clock-in-window-minutes 120
   "Minutes after auto clock-out during which auto clock-in is allowed."
   :type 'integer
@@ -289,7 +299,8 @@ Known providers are `emacs' (activity inside Emacs),
 
 (defun org-tempus--notify (msg)
   "Notify user with MSG using desktop notifications when available."
-  (let ((sent nil))
+  (when org-tempus-notifications-enabled
+    (let ((sent nil))
     (when (or (fboundp 'notifications-notify)
               (require 'notifications nil t))
       (setq sent
@@ -308,7 +319,7 @@ Known providers are `emacs' (activity inside Emacs),
                (message "Org Tempus notification error: %s" err)
                nil))))
     (unless sent
-      (message "%s" msg))))
+      (message "%s" msg)))))
 
 (defun org-tempus--current-task-name ()
   "Return unpropertized name of current task."
@@ -364,6 +375,30 @@ Known providers are `emacs' (activity inside Emacs),
     (setq org-tempus--session-start-time nil))
   (org-tempus--update-mode-line)
   (message "Org Tempus session reset."))
+
+(defun org-tempus-toggle-legend ()
+  "Toggle legend labels in the mode line."
+  (interactive)
+  (setq org-tempus-show-legend (not org-tempus-show-legend))
+  (org-tempus--update-mode-line)
+  (message "Org Tempus legend %s."
+           (if org-tempus-show-legend "enabled" "disabled")))
+
+(defun org-tempus-toggle-notifications ()
+  "Toggle Org Tempus notifications."
+  (interactive)
+  (setq org-tempus-notifications-enabled (not org-tempus-notifications-enabled))
+  (message "Org Tempus notifications %s."
+           (if org-tempus-notifications-enabled "enabled" "disabled")))
+
+(defun org-tempus-toggle-auto-clock ()
+  "Toggle Org Tempus auto clock in/out."
+  (interactive)
+  (setq org-tempus-auto-clock-enabled (not org-tempus-auto-clock-enabled))
+  (unless org-tempus-auto-clock-enabled
+    (org-tempus--reset-auto-clock-state))
+  (message "Org Tempus auto clock %s."
+           (if org-tempus-auto-clock-enabled "enabled" "disabled")))
 
 (defun org-tempus--reset-notification-state ()
   "Reset notification state."
@@ -517,7 +552,8 @@ A session does not reset when switching tasks within
   "Handle idle checks, including auto clock-out and notifications."
   (let ((idle-seconds (org-tempus--session-idle-seconds)))
     (when idle-seconds
-      (when (and (org-clock-is-active)
+      (when (and org-tempus-auto-clock-enabled
+                 (org-clock-is-active)
                  (> org-tempus-idle-auto-clock-out-seconds 0)
                  (>= idle-seconds org-tempus-idle-auto-clock-out-seconds))
         (setq org-tempus--auto-clock-out-time (current-time))
@@ -552,7 +588,8 @@ A session does not reset when switching tasks within
 (defun org-tempus--maybe-auto-clock-in ()
   "Auto clock in to the last task if eligible.
 Return non-nil when an auto clock-in occurs."
-  (when (and org-tempus-idle-auto-clock-in
+  (when (and org-tempus-auto-clock-enabled
+             org-tempus-idle-auto-clock-in
              org-tempus--auto-clock-out-time
              (not (org-clock-is-active)))
     (let ((since (float-time (time-subtract (current-time)
