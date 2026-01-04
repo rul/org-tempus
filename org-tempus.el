@@ -30,6 +30,7 @@
 
 ;;; Code:
 (require 'org-clock)
+(require 'org-id)
 
 (defgroup org-tempus ()
   "Display mode line indicator with information about clocked time."
@@ -193,7 +194,12 @@ The value is a string like:
   :type 'integer
   :group 'org-tempus)
 
-(defcustom org-tempus-idle-auto-clock-out-seconds 0
+(defcustom org-tempus-auto-clock-enabled nil
+  "When non-nil, allow Org Tempus auto clock in/out."
+  :type 'boolean
+  :group 'org-tempus)
+
+(defcustom org-tempus-idle-auto-clock-out-seconds 300
   "Idle seconds after which to auto clock out.
 Set to 0 to disable auto clock-out."
   :type 'integer
@@ -204,19 +210,22 @@ Set to 0 to disable auto clock-out."
   :type 'boolean
   :group 'org-tempus)
 
-(defcustom org-tempus-idle-auto-clock-in nil
+(defcustom org-tempus-idle-auto-clock-in t
   "When non-nil, auto clock in after activity if Org Tempus auto clocked out."
   :type 'boolean
   :group 'org-tempus)
 
-(defcustom org-tempus-auto-clock-enabled t
-  "When non-nil, allow Org Tempus auto clock in/out."
-  :type 'boolean
+(defcustom org-tempus-idle-auto-clock-in-window-minutes 120
+  "Minutes after auto clock-out during which auto clock-in to old task is
+allowed."
+  :type 'integer
   :group 'org-tempus)
 
-(defcustom org-tempus-idle-auto-clock-in-window-minutes 120
-  "Minutes after auto clock-out during which auto clock-in is allowed."
-  :type 'integer
+(defcustom org-tempus-default-task-id nil
+  "Org ID of the default task used for auto clock-in.
+You can set this by running `org-id-get-create' on a heading and
+assigning the resulting ID to this variable."
+  :type '(choice (const :tag "None" nil) string)
   :group 'org-tempus)
 
 (defcustom org-tempus-idle-provider 'emacs
@@ -575,7 +584,8 @@ A session does not reset when switching tasks within
       (when (and (>= org-tempus--idle-active-streak
                      org-tempus-idle-active-streak-seconds)
                  (not (org-clock-is-active)))
-        (unless (org-tempus--maybe-auto-clock-in)
+        (unless (or (org-tempus--maybe-auto-clock-in)
+                    (org-tempus--maybe-auto-clock-in-default))
           (when (org-tempus--notification-allowed-p)
             (org-tempus--record-notification)
             (org-tempus--notify
@@ -598,6 +608,21 @@ Return non-nil when an auto clock-in occurs."
         (org-clock-in-last)
         (org-tempus--reset-auto-clock-state)
         (org-tempus--notify "Auto clocked in to your last task.")
+        t))))
+
+(defun org-tempus--maybe-auto-clock-in-default ()
+  "Auto clock in to the default task if eligible.
+Return non-nil when an auto clock-in occurs."
+  (when (and org-tempus-auto-clock-enabled
+             org-tempus-default-task-id
+             (not (org-clock-is-active)))
+    (let ((marker (org-id-find org-tempus-default-task-id 'marker)))
+      (when (and marker (marker-buffer marker))
+        (with-current-buffer (marker-buffer marker)
+          (org-with-point-at marker
+            (org-clock-in)))
+        (org-tempus--reset-auto-clock-state)
+        (org-tempus--notify "Auto clocked in to your default task.")
         t))))
 
 (defun org-tempus--maybe-update-dconf (&optional value)
@@ -638,7 +663,7 @@ Return non-nil when an auto clock-in occurs."
                             (org-tempus--mode-line-separator)
                             (org-tempus--format-mode-line-item
                              "T" total-display)
-                            "] ("
+                            "] "
                             (org-tempus--current-task-name)
                             (let* ((task-minutes (org-tempus--current-task-time-minutes))
                                    (task-time (org-duration-from-minutes task-minutes))
