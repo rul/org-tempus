@@ -175,6 +175,9 @@ The value is a string like:
 (defvar org-tempus--auto-clock-out-time nil
   "Time when Org Tempus last auto clocked out.")
 
+(defvar org-tempus--last-idle-check-time nil
+  "Time when Org Tempus last checked for idle activity.")
+
 (defcustom org-tempus-idle-check-interval 60
   "Seconds between idle checks for out-of-clock activity."
   :type 'integer
@@ -559,7 +562,28 @@ A session does not reset when switching tasks within
 
 (defun org-tempus--handle-idle ()
   "Handle idle checks, including auto clock-out and notifications."
-  (let ((idle-seconds (org-tempus--session-idle-seconds)))
+  (let* ((idle-seconds (org-tempus--session-idle-seconds))
+         (now (current-time))
+         (last-check org-tempus--last-idle-check-time)
+         (since-last (and last-check
+                          (float-time (time-subtract now last-check)))))
+    (setq org-tempus--last-idle-check-time now)
+    (when (and since-last
+               org-tempus-auto-clock-enabled
+               (org-clock-is-active)
+               (> org-tempus-auto-clock-out-seconds 0)
+               (>= since-last org-tempus-auto-clock-out-seconds))
+      (setq org-tempus--auto-clock-out-time now)
+      (if org-tempus-auto-clock-out-backdate
+          (org-clock-out nil t last-check)
+        (org-clock-out nil t))
+      (setq org-tempus--session-start-time nil)
+      (org-tempus--reset-notification-state)
+      (org-tempus--update-mode-line)
+      (org-tempus--notify
+       (format "Auto clocked out after %s away."
+               (org-duration-from-minutes
+                (/ since-last 60.0)))))
     (when idle-seconds
       (when (and org-tempus-auto-clock-enabled
                  (org-clock-is-active)
