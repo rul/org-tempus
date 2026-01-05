@@ -608,18 +608,29 @@ A session does not reset when switching tasks within
       (when (and (>= org-tempus--idle-active-streak
                      org-tempus-idle-active-streak-seconds)
                  (not (org-clock-is-active)))
-        (unless (or (org-tempus--maybe-auto-clock-in)
-                    (org-tempus--maybe-auto-clock-in-default))
-          (when (org-tempus--notification-allowed-p)
-            (org-tempus--record-notification)
-            (org-tempus--notify
-             "You seem active but no task is clocked in.")))))))
+        (let ((start-time (time-subtract (current-time)
+                                         (seconds-to-time
+                                          org-tempus--idle-active-streak))))
+          (unless (or (org-tempus--maybe-auto-clock-in start-time)
+                      (org-tempus--maybe-auto-clock-in-default start-time))
+            (when (org-tempus--notification-allowed-p)
+              (org-tempus--record-notification)
+              (org-tempus--notify
+               "You seem active but no task is clocked in."))))))))
 
 (defun org-tempus--gvariant-string (value)
   "Return VALUE as a quoted GVariant string literal."
   (concat "'" (replace-regexp-in-string "['\\\\]" "\\\\\\&" value) "'"))
 
-(defun org-tempus--maybe-auto-clock-in ()
+(defun org-tempus--clock-in-last (start-time)
+  "Clock in to the last task using START-TIME.
+Return non-nil when clock-in succeeds."
+  (let ((marker (car org-clock-history)))
+    (when (and marker (marker-buffer marker))
+      (org-clock-clock-in (list marker) nil start-time)
+      t)))
+
+(defun org-tempus--maybe-auto-clock-in (&optional start-time)
   "Auto clock in to the last task if eligible.
 Return non-nil when an auto clock-in occurs."
   (when (and org-tempus-auto-clock-enabled
@@ -629,12 +640,12 @@ Return non-nil when an auto clock-in occurs."
     (let ((since (float-time (time-subtract (current-time)
                                             org-tempus--auto-clock-out-time))))
       (when (<= since (* 60 org-tempus-auto-clock-in-window-minutes))
-        (org-clock-in-last)
+        (org-tempus--clock-in-last start-time)
         (org-tempus--reset-auto-clock-state)
         (org-tempus--notify "Auto clocked in to your last task.")
         t))))
 
-(defun org-tempus--maybe-auto-clock-in-default ()
+(defun org-tempus--maybe-auto-clock-in-default (&optional start-time)
   "Auto clock in to the default task if eligible.
 Return non-nil when an auto clock-in occurs."
   (when (and org-tempus-auto-clock-enabled
@@ -644,7 +655,7 @@ Return non-nil when an auto clock-in occurs."
       (when (and marker (marker-buffer marker))
         (with-current-buffer (marker-buffer marker)
           (org-with-point-at marker
-            (org-clock-in)))
+            (org-clock-in nil start-time)))
         (org-tempus--reset-auto-clock-state)
         (org-tempus--notify "Auto clocked in to your default task.")
         t))))
