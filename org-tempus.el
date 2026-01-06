@@ -568,6 +568,9 @@ A session does not reset when switching tasks within
          (since-last (and last-check
                           (float-time (time-subtract now last-check)))))
     (setq org-tempus--last-idle-check-time now)
+    (when (and (numberp since-last)
+               (> since-last (* 2 org-tempus-idle-check-interval)))
+      (setq org-tempus--idle-active-streak 0))
     (when (and since-last
                org-tempus-auto-clock-enabled
                (org-clock-is-active)
