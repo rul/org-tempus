@@ -642,6 +642,7 @@ Return non-nil when an auto clock-in occurs."
       (when (<= since (* 60 org-tempus-auto-clock-in-window-minutes))
         (org-tempus--clock-in-last start-time)
         (org-tempus--reset-auto-clock-state)
+        (org-tempus--update-mode-line)
         (org-tempus--notify "Auto clocked in to your last task.")
         t))))
 
@@ -657,6 +658,7 @@ Return non-nil when an auto clock-in occurs."
           (org-with-point-at marker
             (org-clock-in nil start-time)))
         (org-tempus--reset-auto-clock-state)
+        (org-tempus--update-mode-line)
         (org-tempus--notify "Auto clocked in to your default task.")
         t))))
 
