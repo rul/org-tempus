@@ -630,6 +630,14 @@ Return non-nil when clock-in succeeds."
       (org-clock-clock-in (list marker) nil start-time)
       t)))
 
+(defun org-tempus--auto-clock-in (clock-in-fn start-time msg)
+  "Auto clock in using CLOCK-IN-FN at START-TIME and notify with MSG."
+  (when (funcall clock-in-fn start-time)
+    (org-tempus--reset-auto-clock-state)
+    (org-tempus--update-mode-line)
+    (org-tempus--notify msg)
+    t))
+
 (defun org-tempus--maybe-auto-clock-in (&optional start-time)
   "Auto clock in to the last task if eligible.
 Return non-nil when an auto clock-in occurs."
@@ -640,11 +648,20 @@ Return non-nil when an auto clock-in occurs."
     (let ((since (float-time (time-subtract (current-time)
                                             org-tempus--auto-clock-out-time))))
       (when (<= since (* 60 org-tempus-auto-clock-in-window-minutes))
-        (org-tempus--clock-in-last start-time)
-        (org-tempus--reset-auto-clock-state)
-        (org-tempus--update-mode-line)
-        (org-tempus--notify "Auto clocked in to your last task.")
-        t))))
+        (org-tempus--auto-clock-in
+         #'org-tempus--clock-in-last
+         start-time
+         "Auto clocked in to your last task.")))))
+
+(defun org-tempus--clock-in-default (start-time)
+  "Clock in to the default task using START-TIME.
+Return non-nil when clock-in succeeds."
+  (let ((marker (org-id-find org-tempus-auto-clock-default-task-id 'marker)))
+    (when (and marker (marker-buffer marker))
+      (with-current-buffer (marker-buffer marker)
+        (org-with-point-at marker
+          (org-clock-in nil start-time)))
+      t)))
 
 (defun org-tempus--maybe-auto-clock-in-default (&optional start-time)
   "Auto clock in to the default task if eligible.
@@ -652,15 +669,10 @@ Return non-nil when an auto clock-in occurs."
   (when (and org-tempus-auto-clock-enabled
              org-tempus-auto-clock-default-task-id
              (not (org-clock-is-active)))
-    (let ((marker (org-id-find org-tempus-auto-clock-default-task-id 'marker)))
-      (when (and marker (marker-buffer marker))
-        (with-current-buffer (marker-buffer marker)
-          (org-with-point-at marker
-            (org-clock-in nil start-time)))
-        (org-tempus--reset-auto-clock-state)
-        (org-tempus--update-mode-line)
-        (org-tempus--notify "Auto clocked in to your default task.")
-        t))))
+    (org-tempus--auto-clock-in
+     #'org-tempus--clock-in-default
+     start-time
+     "Auto clocked in to your default task.")))
 
 (defun org-tempus--maybe-update-dconf (&optional value)
   "Update dconf with VALUE when `org-tempus-dconf-path' is set."
