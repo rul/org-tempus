@@ -63,8 +63,28 @@
   :type 'integer
   :group 'org-tempus)
 
+(defvar org-tempus-mode nil
+  "Non-nil when Org Tempus mode is enabled.")
+
+(defvar org-tempus--timer nil
+  "Timer used to refresh the Org Tempus mode line.")
+
+(defvar org-tempus--idle-timer nil
+  "Timer used to check session idle activity.")
+
+(defvar org-tempus--notification-reset-timer nil
+  "Timer used to reset notification streaks.")
+
+(defvar org-tempus-idle-check-interval
+  "Seconds between idle checks for out-of-clock activity.")
+
+(defvar org-tempus-notification-reset-seconds
+  "Seconds after which notification streaks reset.")
+
 (defvar org-tempus--last-dconf-value nil
   "Last string posted to dconf, to avoid redundant updates.")
+
+(declare-function notifications-notify "notifications" (&rest args))
 
 (defcustom org-tempus-dconf-path nil
   "When non-nil, post the Org Tempus mode line string to this dconf path.
@@ -104,7 +124,7 @@ The value is a string like:
   :group 'org-tempus)
 
 (defcustom org-tempus-notification-timeout-ms 5000
-  "Milliseconds before notifications expire. Set to 0 to use defaults."
+  "Milliseconds before notifications expire.  Set to 0 to use defaults."
   :type 'integer
   :group 'org-tempus)
 
@@ -152,9 +172,6 @@ The value is a string like:
   "Restart Org Tempus timers."
   (org-tempus--start-timers))
 
-(defvar org-tempus--notification-reset-timer nil
-  "Timer used to reset notification streaks.")
-
 (defcustom org-tempus-notification-reset-seconds 3600
   "Seconds after which notification streaks reset."
   :type 'integer
@@ -168,9 +185,6 @@ The value is a string like:
   "Maximum break seconds to display when no task is clocked in."
   :type 'integer
   :group 'org-tempus)
-
-(defvar org-tempus--idle-timer nil
-  "Timer used to check session idle activity.")
 
 (defvar org-tempus--auto-clock-out-time nil
   "Time when Org Tempus last auto clocked out.")
@@ -219,8 +233,7 @@ Set to 0 to disable auto clock-out."
   :group 'org-tempus)
 
 (defcustom org-tempus-auto-clock-in-window-minutes 120
-  "Minutes after auto clock-out during which auto clock-in to old task is
-allowed."
+  "Minutes after auto clock-out during which auto clock-in to old task is allowed."
   :type 'integer
   :group 'org-tempus)
 
@@ -266,9 +279,6 @@ Known providers are `emacs' (activity inside Emacs),
 
 (defconst org-tempus--mode-line-format '(:eval org-tempus-mode-line-string)
   "Mode line construct used by Org Tempus.")
-
-(defvar org-tempus--timer nil
-  "Timer used to refresh the Org Tempus mode line.")
 
 (defvar org-tempus--saved-org-mode-line-string nil
   "Saved value of `org-mode-line-string' when `org-tempus-mode' is enabled.")
@@ -561,7 +571,7 @@ A session does not reset when switching tasks within
     (_ nil)))
 
 (defun org-tempus--handle-idle ()
-  "Handle idle checks, including auto clock-out and notifications."
+  "Handle idle checking, including auto clock-out and notifications."
   (let* ((idle-seconds (org-tempus--session-idle-seconds))
          (now (current-time))
          (last-check org-tempus--last-idle-check-time)
@@ -643,6 +653,7 @@ Return non-nil when clock-in succeeds."
 
 (defun org-tempus--maybe-auto-clock-in (&optional start-time)
   "Auto clock in to the last task if eligible.
+When START-TIME is non-nil, use it as the clock-in time.
 Return non-nil when an auto clock-in occurs."
   (when (and org-tempus-auto-clock-enabled
              org-tempus-auto-clock-in-last
@@ -668,6 +679,7 @@ Return non-nil when clock-in succeeds."
 
 (defun org-tempus--maybe-auto-clock-in-default (&optional start-time)
   "Auto clock in to the default task if eligible.
+When START-TIME is non-nil, use it as the clock-in time.
 Return non-nil when an auto clock-in occurs."
   (when (and org-tempus-auto-clock-enabled
              org-tempus-auto-clock-default-task-id
