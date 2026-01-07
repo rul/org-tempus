@@ -113,6 +113,12 @@ The value is a string like:
   :type 'integer
   :group 'org-tempus)
 
+(defcustom org-tempus-session-starts-on-activity t
+  "When non-nil, start session tracking as soon as activity is detected.
+When nil, start session tracking on clock-in."
+  :type 'boolean
+  :group 'org-tempus)
+
 (defcustom org-tempus-session-threshold-minutes 30
   "Minutes of continuous session after which a notification is sent."
   :type 'integer
@@ -472,13 +478,18 @@ Known providers are `emacs' (activity inside Emacs),
            (gap (and last-out
                      (float-time (time-subtract org-clock-start-time last-out)))))
       (setq org-tempus--session-start-time
-            (if (and gap
-                     (>= gap 0)
-                     (<= gap org-tempus-session-gap-seconds))
-                (or org-tempus--session-start-time org-clock-start-time)
-              (progn
-                (org-tempus--reset-notification-state)
-                org-clock-start-time))))))
+            (cond
+             ((and org-tempus-session-starts-on-activity
+                   org-tempus--session-start-time
+                   (not last-out))
+              org-tempus--session-start-time)
+             ((and gap
+                   (>= gap 0)
+                   (<= gap org-tempus-session-gap-seconds))
+              (or org-tempus--session-start-time org-clock-start-time))
+             (t
+              (org-tempus--reset-notification-state)
+              org-clock-start-time))))))
 
 (defun org-tempus--current-session-duration ()
   "Return current session duration in seconds.
@@ -634,6 +645,9 @@ A session does not reset when switching tasks within
         (let ((start-time (time-subtract (current-time)
                                          (seconds-to-time
                                           org-tempus--idle-active-streak))))
+          (when (and org-tempus-session-starts-on-activity
+                     (not org-tempus--session-start-time))
+            (setq org-tempus--session-start-time start-time))
           (unless (or (org-tempus--maybe-auto-clock-in start-time)
                       (org-tempus--maybe-auto-clock-in-default start-time))
             (when (org-tempus--notification-allowed-p)
