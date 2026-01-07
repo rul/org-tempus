@@ -619,44 +619,50 @@ A session does not reset when switching tasks within
                (org-duration-from-minutes
                 (/ since-last 60.0)))))
     (when idle-seconds
-      (when (and org-tempus-auto-clock-enabled
-                 (org-clock-is-active)
-                 (> org-tempus-auto-clock-out-seconds 0)
-                 (>= idle-seconds org-tempus-auto-clock-out-seconds))
-        (setq org-tempus--auto-clock-out-time (current-time))
-        (if org-tempus-auto-clock-out-backdate
-            (org-clock-out nil t (time-subtract (current-time)
-                                                (seconds-to-time idle-seconds)))
-          (org-clock-out nil t))
-        (setq org-tempus--session-start-time nil)
-        (org-tempus--reset-notification-state)
-        (org-tempus--update-mode-line)
-        (org-tempus--notify
-         (format "Auto clocked out after %s idle."
-                 (org-duration-from-minutes
-                  (/ idle-seconds 60.0)))))
-      (if (< idle-seconds org-tempus-idle-active-threshold-seconds)
-          (when (or (not (numberp since-last))
-                    (and (>= since-last org-tempus-idle-check-interval)
-                         (<= since-last (* 2 org-tempus-idle-check-interval))))
-            (setq org-tempus--idle-active-streak
-                  (+ org-tempus--idle-active-streak org-tempus-idle-check-interval)))
-        (setq org-tempus--idle-active-streak 0))
-      (when (and (>= org-tempus--idle-active-streak
-                     org-tempus-idle-active-streak-seconds)
-                 (not (org-clock-is-active)))
-        (let ((start-time (time-subtract (current-time)
-                                         (seconds-to-time
-                                          org-tempus--idle-active-streak))))
+      (let* ((active (< idle-seconds org-tempus-idle-active-threshold-seconds))
+             (start-time (time-subtract (current-time)
+                                        (seconds-to-time
+                                         (min idle-seconds
+                                              org-tempus-idle-check-interval))))
+             (auto-clocked-in nil))
+        (when (and active (not (org-clock-is-active)))
           (when (and org-tempus-session-starts-on-activity
                      (not org-tempus--session-start-time))
             (setq org-tempus--session-start-time start-time))
-          (unless (or (org-tempus--maybe-auto-clock-in start-time)
-                      (org-tempus--maybe-auto-clock-in-default start-time))
-            (when (org-tempus--notification-allowed-p)
-              (org-tempus--record-notification)
-              (org-tempus--notify
-               "You seem active but no task is clocked in."))))))))
+          (setq auto-clocked-in
+                (or (org-tempus--maybe-auto-clock-in start-time)
+                    (org-tempus--maybe-auto-clock-in-default start-time))))
+        (when (and org-tempus-auto-clock-enabled
+                   (org-clock-is-active)
+                   (> org-tempus-auto-clock-out-seconds 0)
+                   (>= idle-seconds org-tempus-auto-clock-out-seconds))
+          (setq org-tempus--auto-clock-out-time (current-time))
+          (if org-tempus-auto-clock-out-backdate
+              (org-clock-out nil t (time-subtract (current-time)
+                                                  (seconds-to-time idle-seconds)))
+            (org-clock-out nil t))
+          (setq org-tempus--session-start-time nil)
+          (org-tempus--reset-notification-state)
+          (org-tempus--update-mode-line)
+          (org-tempus--notify
+           (format "Auto clocked out after %s idle."
+                   (org-duration-from-minutes
+                    (/ idle-seconds 60.0)))))
+        (if active
+            (when (or (not (numberp since-last))
+                      (and (>= since-last org-tempus-idle-check-interval)
+                           (<= since-last (* 2 org-tempus-idle-check-interval))))
+              (setq org-tempus--idle-active-streak
+                    (+ org-tempus--idle-active-streak org-tempus-idle-check-interval)))
+          (setq org-tempus--idle-active-streak 0))
+        (when (and (not auto-clocked-in)
+                   (>= org-tempus--idle-active-streak
+                       org-tempus-idle-active-streak-seconds)
+                   (not (org-clock-is-active)))
+          (when (org-tempus--notification-allowed-p)
+            (org-tempus--record-notification)
+            (org-tempus--notify
+             "You seem active but no task is clocked in.")))))))
 
 (defun org-tempus--gvariant-string (value)
   "Return VALUE as a quoted GVariant string literal."
