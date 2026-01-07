@@ -636,8 +636,11 @@ A session does not reset when switching tasks within
                  (org-duration-from-minutes
                   (/ idle-seconds 60.0)))))
       (if (< idle-seconds org-tempus-idle-active-threshold-seconds)
-          (setq org-tempus--idle-active-streak
-                (+ org-tempus--idle-active-streak org-tempus-idle-check-interval))
+          (when (or (not (numberp since-last))
+                    (and (>= since-last org-tempus-idle-check-interval)
+                         (<= since-last (* 2 org-tempus-idle-check-interval))))
+            (setq org-tempus--idle-active-streak
+                  (+ org-tempus--idle-active-streak org-tempus-idle-check-interval)))
         (setq org-tempus--idle-active-streak 0))
       (when (and (>= org-tempus--idle-active-streak
                      org-tempus-idle-active-streak-seconds)
