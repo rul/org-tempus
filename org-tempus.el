@@ -505,6 +505,7 @@ A session does not reset when switching tasks within
 (defun org-tempus--maybe-notify-session-threshold (session-seconds)
   "Send a one-time notification when SESSION-SECONDS crosses threshold."
   (when (and (>= session-seconds (* 60 org-tempus-session-threshold-minutes))
+             (not (org-tempus--suspend-gap-p))
              (org-tempus--notification-allowed-p))
     (org-tempus--record-notification)
     (let ((msg (format "Org Tempus session reached %s"
@@ -656,6 +657,7 @@ A session does not reset when switching tasks within
                     (+ org-tempus--idle-active-streak org-tempus-idle-check-interval)))
           (setq org-tempus--idle-active-streak 0))
         (when (and (not auto-clocked-in)
+                   (not (org-tempus--suspend-gap-p))
                    (>= org-tempus--idle-active-streak
                        org-tempus-idle-active-streak-seconds)
                    (not (org-clock-is-active)))
@@ -735,6 +737,18 @@ Return non-nil when an auto clock-in occurs."
                       "write" org-tempus-dconf-path
                       (org-tempus--gvariant-string value))))))
 
+(defun org-tempus--suspend-gap-p ()
+  "Return non-nil when a long gap suggests a suspended session."
+  (let ((since-last (and org-tempus--last-idle-check-time
+                         (float-time
+                          (time-subtract (current-time)
+                                         org-tempus--last-idle-check-time)))))
+    (and (numberp since-last)
+         org-tempus-auto-clock-enabled
+         (org-clock-is-active)
+         (> org-tempus-auto-clock-out-seconds 0)
+         (>= since-last org-tempus-auto-clock-out-seconds))))
+
 (defun org-tempus--update-mode-line ()
   "Update the Org Tempus mode line indicator."
   (let* ((total-minutes (org-tempus--sum-today-minutes))
@@ -795,7 +809,8 @@ Return non-nil when an auto clock-in occurs."
                           'keymap org-tempus--mode-line-map
                           'help-echo "Org Tempus"
                           'pointer 'hand)))
-    (org-tempus--maybe-notify-total-threshold total-seconds)
+    (unless (org-tempus--suspend-gap-p)
+      (org-tempus--maybe-notify-total-threshold total-seconds))
     (add-face-text-property 0 (length str) 'org-tempus-mode-line-face 'append str)
     (setq org-tempus-mode-line-string str))
   (org-tempus--maybe-update-dconf
