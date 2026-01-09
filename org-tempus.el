@@ -73,6 +73,12 @@
   :type 'integer
   :group 'org-tempus)
 
+(defcustom org-tempus-debug nil
+  "When non-nil, log Org Tempus decisions and events.
+Debug logs are appended to the *Org-Tempus-Debug* buffer."
+  :type 'boolean
+  :group 'org-tempus)
+
 (defvar org-tempus-mode nil
   "Non-nil when Org Tempus mode is enabled.")
 
@@ -95,6 +101,34 @@
   "Last string posted to dconf, to avoid redundant updates.")
 
 (declare-function notifications-notify "notifications" (&rest args))
+
+(defun org-tempus--debug (format-string &rest args)
+  "Log a debug message when `org-tempus-debug' is non-nil.
+FORMAT-STRING and ARGS follow `format'."
+  (when org-tempus-debug
+    (with-current-buffer (get-buffer-create "*Org-Tempus-Debug*")
+      (goto-char (point-max))
+      (insert (format-time-string "[%F %T] "))
+      (insert (apply #'format format-string args))
+      (insert "\n")
+      (let ((max-bytes 1024))
+        (when (> (buffer-size) max-bytes)
+          (delete-region (point-min)
+                         (min (point-max)
+                              (- (buffer-size) max-bytes))))))))
+
+(defun org-tempus--notification-status-string ()
+  "Return a debug string with notification rate-limit status."
+  (let* ((state org-tempus--notification-state)
+         (count (or (plist-get state :count) 0))
+         (last (plist-get state :last-time))
+         (cooldown org-tempus-notification-cooldown-seconds)
+         (since (and last (float-time (time-subtract (current-time) last)))))
+    (format "count %s/%s, cooldown %ss, since %s"
+            count
+            org-tempus-notification-max-count
+            cooldown
+            (if since (format "%.1fs" since) "n/a"))))
 
 (defcustom org-tempus-dconf-path nil
   "When non-nil, post the Org Tempus mode line string to this dconf path.
@@ -338,6 +372,9 @@ Known providers are `emacs' (activity inside Emacs),
 (defun org-tempus--notify (msg)
   "Notify user with MSG using desktop notifications when available."
   (when org-tempus-notifications-enabled
+    (org-tempus--debug "Notify: %s (%s)"
+                       msg
+                       (org-tempus--notification-status-string))
     (let ((sent nil))
     (when (or (fboundp 'notifications-notify)
               (require 'notifications nil t))
@@ -511,6 +548,7 @@ A session does not reset when switching tasks within
     (let ((msg (format "Org Tempus session reached %s"
                        (org-duration-from-minutes
                         (/ session-seconds 60.0)))))
+      (org-tempus--debug "Notify session threshold: %s" msg)
       (org-tempus--notify msg))))
 
 (defun org-tempus--maybe-notify-total-threshold (total-seconds)
@@ -525,6 +563,7 @@ A session does not reset when switching tasks within
       (let ((msg (format "Org Tempus total reached %s today"
                          (org-duration-from-minutes
                           (/ total-seconds 60.0)))))
+        (org-tempus--debug "Notify total threshold: %s" msg)
         (org-tempus--notify msg)))))
 
 (defun org-tempus--current-break-duration ()
@@ -602,12 +641,14 @@ A session does not reset when switching tasks within
     (setq org-tempus--last-idle-check-time now)
     (when (and (numberp since-last)
                (> since-last (* 2 org-tempus-idle-check-interval)))
+      (org-tempus--debug "Reset activity streak after gap: %.1fs" since-last)
       (setq org-tempus--idle-active-streak 0))
     (when (and since-last
                org-tempus-auto-clock-enabled
                (org-clock-is-active)
                (> org-tempus-auto-clock-out-seconds 0)
                (>= since-last org-tempus-auto-clock-out-seconds))
+      (org-tempus--debug "Auto clock-out after gap: %.1fs" since-last)
       (setq org-tempus--auto-clock-out-time now)
       (if org-tempus-auto-clock-out-backdate
           (org-clock-out nil t last-check)
@@ -630,6 +671,8 @@ A session does not reset when switching tasks within
           (when (and org-tempus-session-starts-on-activity
                      (not org-tempus--session-start-time))
             (setq org-tempus--session-start-time start-time))
+          (org-tempus--debug "Active detected (idle %.1fs), attempting auto clock-in"
+                             idle-seconds)
           (setq auto-clocked-in
                 (or (org-tempus--maybe-auto-clock-in start-time)
                     (org-tempus--maybe-auto-clock-in-default start-time))))
@@ -637,6 +680,7 @@ A session does not reset when switching tasks within
                    (org-clock-is-active)
                    (> org-tempus-auto-clock-out-seconds 0)
                    (>= idle-seconds org-tempus-auto-clock-out-seconds))
+          (org-tempus--debug "Auto clock-out after idle: %.1fs" idle-seconds)
           (setq org-tempus--auto-clock-out-time (current-time))
           (if org-tempus-auto-clock-out-backdate
               (org-clock-out nil t (time-subtract (current-time)
@@ -663,8 +707,9 @@ A session does not reset when switching tasks within
                    (not (org-clock-is-active)))
           (when (org-tempus--notification-allowed-p)
             (org-tempus--record-notification)
-            (org-tempus--notify
-             "You seem active but no task is clocked in.")))))))
+            (let ((msg "You seem active but no task is clocked in."))
+              (org-tempus--debug "Notify idle: %s" msg)
+              (org-tempus--notify msg))))))))
 
 (defun org-tempus--gvariant-string (value)
   "Return VALUE as a quoted GVariant string literal."
@@ -681,6 +726,7 @@ Return non-nil when clock-in succeeds."
 (defun org-tempus--auto-clock-in (clock-in-fn start-time msg)
   "Auto clock in using CLOCK-IN-FN at START-TIME and notify with MSG."
   (when (funcall clock-in-fn start-time)
+    (org-tempus--debug "%s" msg)
     (org-tempus--reset-auto-clock-state)
     (org-tempus--update-mode-line)
     (org-tempus--notify msg)
@@ -696,11 +742,13 @@ Return non-nil when an auto clock-in occurs."
              (not (org-clock-is-active)))
     (let ((since (float-time (time-subtract (current-time)
                                             org-tempus--auto-clock-out-time))))
-      (when (<= since (* 60 org-tempus-auto-clock-in-window-minutes))
-        (org-tempus--auto-clock-in
-         #'org-tempus--clock-in-last
-         start-time
-         "Auto clocked in to your last task.")))))
+      (if (<= since (* 60 org-tempus-auto-clock-in-window-minutes))
+          (org-tempus--auto-clock-in
+           #'org-tempus--clock-in-last
+           start-time
+           "Auto clocked in to your last task.")
+        (org-tempus--debug "Skipping auto clock-in (last task): window expired (%.1fs)"
+                           since)))))
 
 (defun org-tempus--clock-in-default (start-time)
   "Clock in to the default task using START-TIME.
@@ -719,10 +767,12 @@ Return non-nil when an auto clock-in occurs."
   (when (and org-tempus-auto-clock-enabled
              org-tempus-auto-clock-default-task-id
              (not (org-clock-is-active)))
-    (org-tempus--auto-clock-in
-     #'org-tempus--clock-in-default
-     start-time
-     "Auto clocked in to your default task.")))
+    (if (org-id-find org-tempus-auto-clock-default-task-id 'marker)
+        (org-tempus--auto-clock-in
+         #'org-tempus--clock-in-default
+         start-time
+         "Auto clocked in to your default task.")
+      (org-tempus--debug "Skipping auto clock-in (default): Org ID not found"))))
 
 (defun org-tempus--maybe-update-dconf (&optional value)
   "Update dconf with VALUE when `org-tempus-dconf-path' is set."
