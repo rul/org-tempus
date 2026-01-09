@@ -100,6 +100,9 @@ Debug logs are appended to the *Org-Tempus-Debug* buffer."
 (defvar org-tempus--last-dconf-value nil
   "Last string posted to dconf, to avoid redundant updates.")
 
+(defvar org-tempus--notification-state nil
+  "Plist storing notification state for notifications.")
+
 (declare-function notifications-notify "notifications" (&rest args))
 
 (defun org-tempus--debug (format-string &rest args)
@@ -116,19 +119,6 @@ FORMAT-STRING and ARGS follow `format'."
           (delete-region (point-min)
                          (min (point-max)
                               (- (buffer-size) max-bytes))))))))
-
-(defun org-tempus--notification-status-string ()
-  "Return a debug string with notification rate-limit status."
-  (let* ((state org-tempus--notification-state)
-         (count (or (plist-get state :count) 0))
-         (last (plist-get state :last-time))
-         (cooldown org-tempus-notification-cooldown-seconds)
-         (since (and last (float-time (time-subtract (current-time) last)))))
-    (format "count %s/%s, cooldown %ss, since %s"
-            count
-            org-tempus-notification-max-count
-            cooldown
-            (if since (format "%.1fs" since) "n/a"))))
 
 (defcustom org-tempus-dconf-path nil
   "When non-nil, post the Org Tempus mode line string to this dconf path.
@@ -187,6 +177,19 @@ When nil, start session tracking on clock-in."
   "Maximum number of break or idle notifications."
   :type 'integer
   :group 'org-tempus)
+
+(defun org-tempus--notification-status-string ()
+  "Return a debug string with notification rate-limit status."
+  (let* ((state org-tempus--notification-state)
+         (count (or (plist-get state :count) 0))
+         (last (plist-get state :last-time))
+         (cooldown org-tempus-notification-cooldown-seconds)
+         (since (and last (float-time (time-subtract (current-time) last)))))
+    (format "count %s/%s, cooldown %ss, since %s"
+            count
+            org-tempus-notification-max-count
+            cooldown
+            (if since (format "%.1fs" since) "n/a"))))
 
 (defun org-tempus--stop-timers ()
   "Stop Org Tempus timers."
@@ -344,9 +347,6 @@ Known providers are `emacs' (activity inside Emacs),
 
 (defvar org-tempus--session-start-time nil
   "Internal session start time as a value returned by `current-time'.")
-
-(defvar org-tempus--notification-state nil
-  "Plist storing notification state for notifications.")
 
 (defvar org-tempus--total-threshold-notified-date nil
   "Date string of last total threshold notification.")
