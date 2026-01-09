@@ -865,7 +865,7 @@ Return non-nil when an auto clock-in occurs."
     (setq org-tempus-mode-line-string str))
   (org-tempus--maybe-update-dconf
    (substring-no-properties org-tempus-mode-line-string))
-  (force-mode-line-update))
+  (force-mode-line-update t))
 
 ;;;###autoload
 (define-minor-mode org-tempus-mode
