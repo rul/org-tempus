@@ -7,7 +7,7 @@
 ;; URL: https://github.com/rul/org-tempus
 ;; Version: 0.0.1
 ;; Package-Requires: ((emacs "27.1"))
-;; Keywords: convenience, time, clock
+;; Keywords: calendar
 
 ;; This file is NOT part of GNU Emacs.
 
