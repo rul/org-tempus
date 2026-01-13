@@ -732,6 +732,15 @@ Return non-nil when clock-in succeeds."
     (org-tempus--notify msg)
     t))
 
+(defun org-tempus--auto-clock-in-message (base)
+  "Return notification message using BASE with optional break time."
+  (let ((break-seconds (org-tempus--current-break-duration)))
+    (if break-seconds
+        (format "%s after %s break"
+                base
+                (org-duration-from-minutes (/ break-seconds 60.0)))
+      base)))
+
 (defun org-tempus--maybe-auto-clock-in (&optional start-time)
   "Auto clock in to the last task if eligible.
 When START-TIME is non-nil, use it as the clock-in time.
@@ -746,7 +755,8 @@ Return non-nil when an auto clock-in occurs."
           (org-tempus--auto-clock-in
            #'org-tempus--clock-in-last
            start-time
-           "Auto clocked in to your last task.")
+           (org-tempus--auto-clock-in-message
+            "Auto clocked in to your last task"))
         (org-tempus--debug "Skipping auto clock-in (last task): window expired (%.1fs)"
                            since)))))
 
@@ -771,7 +781,8 @@ Return non-nil when an auto clock-in occurs."
         (org-tempus--auto-clock-in
          #'org-tempus--clock-in-default
          start-time
-         "Auto clocked in to your default task.")
+         (org-tempus--auto-clock-in-message
+          "Auto clocked in to your default task"))
       (org-tempus--debug "Skipping auto clock-in (default): Org ID not found"))))
 
 (defun org-tempus--maybe-update-dconf (&optional value)
