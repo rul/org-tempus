@@ -210,12 +210,14 @@ When nil, start session tracking on clock-in."
         (run-at-time org-tempus-update-interval
                      org-tempus-update-interval
                      #'org-tempus--update-mode-line))
-  (when (> org-tempus-idle-check-interval 0)
+  (when (and (numberp org-tempus-idle-check-interval)
+             (> org-tempus-idle-check-interval 0))
     (setq org-tempus--idle-timer
           (run-at-time org-tempus-idle-check-interval
                        org-tempus-idle-check-interval
                        #'org-tempus--handle-idle)))
-  (when (> org-tempus-notification-reset-seconds 0)
+  (when (and (numberp org-tempus-notification-reset-seconds)
+             (> org-tempus-notification-reset-seconds 0))
     (setq org-tempus--notification-reset-timer
           (run-at-time org-tempus-notification-reset-seconds
                        org-tempus-notification-reset-seconds
@@ -885,6 +887,10 @@ Return non-nil when an auto clock-in occurs."
   :global t
   (if org-tempus-mode
       (progn
+      (unless (numberp org-tempus-idle-check-interval)
+        (setq org-tempus-idle-check-interval 60))
+      (unless (numberp org-tempus-notification-reset-seconds)
+        (setq org-tempus-notification-reset-seconds 3600))
       (org-tempus--reset-notification-state)
       (org-tempus--start-timers)
       (add-hook 'org-clock-in-hook #'org-tempus--update-session-start)
