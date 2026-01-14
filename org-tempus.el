@@ -735,7 +735,7 @@ Return non-nil when clock-in succeeds."
 (defun org-tempus--auto-clock-in-message (base)
   "Return notification message using BASE with optional break time."
   (let ((break-seconds (org-tempus--current-break-duration)))
-    (if break-seconds
+    (if (numberp break-seconds)
         (format "%s after %s break"
                 base
                 (org-duration-from-minutes (/ break-seconds 60.0)))
