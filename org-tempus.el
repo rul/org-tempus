@@ -91,10 +91,10 @@ Debug logs are appended to the *Org-Tempus-Debug* buffer."
 (defvar org-tempus--notification-reset-timer nil
   "Timer used to reset notification streaks.")
 
-(defvar org-tempus-idle-check-interval
+(defvar org-tempus-idle-check-interval nil
   "Seconds between idle checks for out-of-clock activity.")
 
-(defvar org-tempus-notification-reset-seconds
+(defvar org-tempus-notification-reset-seconds nil
   "Seconds after which notification streaks reset.")
 
 (defvar org-tempus--last-dconf-value nil
