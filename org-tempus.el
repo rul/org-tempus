@@ -271,7 +271,7 @@ When nil, start session tracking on clock-in."
   :type 'boolean
   :group 'org-tempus)
 
-(defcustom org-tempus-auto-clock-out-seconds 300
+(defcustom org-tempus-auto-clock-out-seconds 240
   "Idle seconds after which to auto clock out.
 Set to 0 to disable auto clock-out."
   :type 'integer
