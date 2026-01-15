@@ -92,7 +92,7 @@ Debug logs are appended to the *Org-Tempus-Debug* buffer."
   "Timer used to reset notification streaks.")
 
 (defvar org-tempus-idle-check-interval nil
-  "Seconds between idle checks for out-of-clock activity.")
+  "Seconds between idle checks and activity detection updates.")
 
 (defvar org-tempus-notification-reset-seconds nil
   "Seconds after which notification streaks reset.")
@@ -254,11 +254,6 @@ When nil, start session tracking on clock-in."
          (set-default symbol value)
          (when (bound-and-true-p org-tempus-mode)
            (org-tempus--restart-timers)))
-  :group 'org-tempus)
-
-(defcustom org-tempus-idle-active-threshold-seconds 60
-  "Maximum idle seconds to consider the user active."
-  :type 'integer
   :group 'org-tempus)
 
 (defcustom org-tempus-idle-active-streak-seconds 120
@@ -663,21 +658,30 @@ A session does not reset when switching tasks within
                (org-duration-from-minutes
                 (/ since-last 60.0)))))
     (when idle-seconds
-      (let* ((active (< idle-seconds org-tempus-idle-active-threshold-seconds))
+      (let* ((active (< idle-seconds org-tempus-idle-check-interval))
              (start-time (time-subtract (current-time)
                                         (seconds-to-time
                                          (min idle-seconds
                                               org-tempus-idle-check-interval))))
              (auto-clocked-in nil))
         (when (and active (not (org-clock-is-active)))
+          (let ((since-out (and org-clock-out-time
+                                (float-time (time-subtract (current-time)
+                                                           org-clock-out-time)))))
+            (when (and since-out
+                       (< since-out org-tempus-idle-active-streak-seconds))
+              (org-tempus--debug
+               "Skip auto clock-in: recent clock-out %.1fs ago" since-out)
+              (setq active nil)))
           (when (and org-tempus-session-starts-on-activity
                      (not org-tempus--session-start-time))
             (setq org-tempus--session-start-time start-time))
           (org-tempus--debug "Active detected (idle %.1fs), attempting auto clock-in"
                              idle-seconds)
-          (setq auto-clocked-in
-                (or (org-tempus--maybe-auto-clock-in start-time)
-                    (org-tempus--maybe-auto-clock-in-default start-time))))
+          (when active
+            (setq auto-clocked-in
+                  (or (org-tempus--maybe-auto-clock-in start-time)
+                      (org-tempus--maybe-auto-clock-in-default start-time))))))
         (when (and org-tempus-auto-clock-enabled
                    (org-clock-is-active)
                    (> org-tempus-auto-clock-out-seconds 0)
@@ -711,7 +715,7 @@ A session does not reset when switching tasks within
             (org-tempus--record-notification)
             (let ((msg "You seem active but no task is clocked in."))
               (org-tempus--debug "Notify idle: %s" msg)
-              (org-tempus--notify msg))))))))
+              (org-tempus--notify msg)))))))
 
 (defun org-tempus--gvariant-string (value)
   "Return VALUE as a quoted GVariant string literal."
