@@ -681,7 +681,7 @@ A session does not reset when switching tasks within
           (when active
             (setq auto-clocked-in
                   (or (org-tempus--maybe-auto-clock-in start-time)
-                      (org-tempus--maybe-auto-clock-in-default start-time))))))
+                      (org-tempus--maybe-auto-clock-in-default start-time)))))
         (when (and org-tempus-auto-clock-enabled
                    (org-clock-is-active)
                    (> org-tempus-auto-clock-out-seconds 0)
@@ -715,7 +715,7 @@ A session does not reset when switching tasks within
             (org-tempus--record-notification)
             (let ((msg "You seem active but no task is clocked in."))
               (org-tempus--debug "Notify idle: %s" msg)
-              (org-tempus--notify msg)))))))
+              (org-tempus--notify msg))))))))
 
 (defun org-tempus--gvariant-string (value)
   "Return VALUE as a quoted GVariant string literal."
