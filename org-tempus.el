@@ -46,16 +46,6 @@
   "Display mode line indicator with information about clocked time."
   :group 'org)
 
-(defface org-tempus-mode-line-face
-  '((t :inherit mode-line))
-  "Face used for the Org Tempus mode line string."
-  :group 'org-tempus)
-
-(defface org-tempus-mode-line-hover-face
-  '((t :inherit mode-line-highlight))
-  "Face used when hovering over the Org Tempus mode line string."
-  :group 'org-tempus)
-
 (defcustom org-tempus-add-to-global-mode-string t
   "When non-nil, append the Org Tempus construct to the mode line."
   :type 'boolean
@@ -311,11 +301,6 @@ Known providers are `emacs' (activity inside Emacs),
          (set-default symbol value)
          (when (bound-and-true-p org-tempus-mode)
            (org-tempus--update-mode-line)))
-  :group 'org-tempus)
-
-(defface org-tempus-session-face
-  '((t :inherit (error mode-line) :weight bold))
-  "Face used for the session duration in the mode line after threshold."
   :group 'org-tempus)
 
 (defvar org-tempus-mode-line-string ""
@@ -825,7 +810,7 @@ Return non-nil when an auto clock-in occurs."
                                        (* 60 org-tempus-total-threshold-minutes))))
          (total-str (org-duration-from-minutes total-minutes))
          (total-display (if total-threshold-hit
-                            (propertize total-str 'face 'org-tempus-session-face)
+                            (propertize total-str 'face 'error)
                           total-str))
          (raw (if (org-clock-is-active)
                   (let* ((session-seconds (org-tempus--current-session-duration))
@@ -833,8 +818,8 @@ Return non-nil when an auto clock-in occurs."
                                    (/ session-seconds 60.0)))
                          (session-str (if (>= session-seconds
                                               (* 60 org-tempus-session-threshold-minutes))
-                                         (propertize session 'face 'org-tempus-session-face)
-                                        session)))
+                                         (propertize session 'face 'error)
+                                       session)))
                     (org-tempus--maybe-notify-session-threshold session-seconds)
                     (concat "⏳["
                             (org-tempus--format-mode-line-item "S" session-str)
@@ -850,7 +835,7 @@ Return non-nil when an auto clock-in occurs."
                                              (org-duration-from-minutes effort-minutes)))
                                    (task-display (if (and effort-minutes
                                                           (>= task-minutes effort-minutes))
-                                                     (propertize task-time 'face 'org-tempus-session-face)
+                                                     (propertize task-time 'face 'error)
                                                    task-time)))
                               (concat " <" task-display
                                       (if effort
@@ -871,14 +856,13 @@ Return non-nil when an auto clock-in occurs."
                             "")
                           "]"))))
          (str (propertize raw
-                          'mouse-face 'org-tempus-mode-line-hover-face
+                          'mouse-face 'mode-line-highlight
                           'local-map org-tempus--mode-line-map
                           'keymap org-tempus--mode-line-map
                           'help-echo "Org Tempus"
                           'pointer 'hand)))
     (unless (org-tempus--suspend-gap-p)
       (org-tempus--maybe-notify-total-threshold total-seconds))
-    (add-face-text-property 0 (length str) 'org-tempus-mode-line-face 'append str)
     (setq org-tempus-mode-line-string str))
   (org-tempus--maybe-update-dconf
    (substring-no-properties org-tempus-mode-line-string))
