@@ -1,6 +1,7 @@
 ;;; org-tempus.el --- Enhance Org time tracking  -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 2025-2026  Raul Benencia
+;; SPDX-License-Identifier: GPL-3.0-or-later
 
 ;; Author: Raul Benencia <id@rbenencia.name>
 ;; Maintainer: Raul Benencia <id@rbenencia.name>
