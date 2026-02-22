@@ -872,7 +872,7 @@ Return non-nil when an auto clock-in occurs."
 ;;;###autoload
 (define-minor-mode org-tempus-mode
   "Minor mode to enhance time tracking in ‘org-mode’."
-  :lighter " Tempus fugit"
+  :lighter " Tempus"
   :global t
   (if org-tempus-mode
       (progn
