@@ -869,75 +869,87 @@ Return non-nil when an auto clock-in occurs."
    (substring-no-properties org-tempus-mode-line-string))
   (force-mode-line-update t))
 
+(defun org-tempus--disable ()
+  "Disable org-tempus integrations and restore previous state."
+  (when org-tempus-add-to-global-mode-string
+    (or global-mode-string (setq global-mode-string '("")))
+    (setq global-mode-string
+          (remove org-tempus--mode-line-format global-mode-string))
+    (force-mode-line-update))
+  (setq org-clock-clocked-in-display org-tempus--saved-org-clock-clocked-in-display)
+  (when org-tempus-hide-org-mode-line-string
+    (setq org-mode-line-string org-tempus--saved-org-mode-line-string)
+    (if (org-clock-is-active)
+        (progn
+          (when (or org-tempus--saved-org-mode-line-string-present
+                    (memq org-clock-clocked-in-display '(mode-line both)))
+            (or global-mode-string (setq global-mode-string '("")))
+            (unless (memq 'org-mode-line-string global-mode-string)
+              (setq global-mode-string
+                    (append global-mode-string (list 'org-mode-line-string)))))
+          (org-clock-update-mode-line))
+      (setq global-mode-string
+            (delq 'org-mode-line-string global-mode-string))
+      (setq org-mode-line-string "")
+      (force-mode-line-update)))
+  (when org-tempus-dconf-path
+    (setq org-tempus--last-dconf-value nil)
+    (org-tempus--maybe-update-dconf ""))
+  (org-tempus--stop-timers)
+  (remove-hook 'org-clock-in-hook #'org-tempus--update-session-start)
+  (remove-hook 'org-clock-in-hook #'org-tempus--reset-notification-state)
+  (remove-hook 'org-clock-in-hook #'org-tempus--update-mode-line)
+  (remove-hook 'org-clock-in-hook #'org-tempus--hide-org-mode-line)
+  (remove-hook 'org-clock-out-hook #'org-tempus--hide-org-mode-line)
+  (remove-hook 'org-clock-out-hook #'org-tempus--update-mode-line)
+  (remove-hook 'org-clock-out-hook #'org-tempus--reset-notification-state)
+  (advice-remove 'org-clock-update-mode-line #'org-tempus--maybe-hide-org-mode-line))
+
+(defun org-tempus--enable ()
+  "Enable org-tempus integrations."
+  (unless (numberp org-tempus-idle-check-interval)
+    (setq org-tempus-idle-check-interval 60))
+  (unless (numberp org-tempus-notification-reset-seconds)
+    (setq org-tempus-notification-reset-seconds 3600))
+  (org-tempus--reset-notification-state)
+  (org-tempus--start-timers)
+  (add-hook 'org-clock-in-hook #'org-tempus--update-session-start)
+  (add-hook 'org-clock-in-hook #'org-tempus--reset-notification-state)
+  (add-hook 'org-clock-in-hook #'org-tempus--update-mode-line t)
+  (add-hook 'org-clock-in-hook #'org-tempus--hide-org-mode-line t)
+  (add-hook 'org-clock-out-hook #'org-tempus--reset-notification-state)
+  (add-hook 'org-clock-out-hook #'org-tempus--update-mode-line)
+  (add-hook 'org-clock-out-hook #'org-tempus--hide-org-mode-line)
+  (advice-add 'org-clock-update-mode-line :after #'org-tempus--maybe-hide-org-mode-line)
+  (when org-tempus-add-to-global-mode-string
+    (or global-mode-string (setq global-mode-string '("")))
+    (or (memq org-tempus--mode-line-format global-mode-string)
+        (setq global-mode-string
+              (append global-mode-string (list org-tempus--mode-line-format)))))
+  (setq org-tempus--saved-org-clock-clocked-in-display org-clock-clocked-in-display)
+  (setq org-clock-clocked-in-display nil)
+  (when org-tempus-hide-org-mode-line-string
+    (setq org-tempus--saved-org-mode-line-string org-mode-line-string)
+    (setq org-tempus--saved-org-mode-line-string-present nil)
+    (org-tempus--hide-org-mode-line))
+  (when (org-clock-is-active)
+    (org-tempus--update-session-start))
+  (org-tempus--update-mode-line))
+
+(defun org-tempus-unload-function ()
+  "Unload `org-tempus' cleanly."
+  (org-tempus--disable)
+  (setq org-tempus-mode nil)
+  nil)
+
 ;;;###autoload
 (define-minor-mode org-tempus-mode
   "Minor mode to enhance time tracking in ‘org-mode’."
   :lighter " Tempus"
   :global t
   (if org-tempus-mode
-      (progn
-      (unless (numberp org-tempus-idle-check-interval)
-        (setq org-tempus-idle-check-interval 60))
-      (unless (numberp org-tempus-notification-reset-seconds)
-        (setq org-tempus-notification-reset-seconds 3600))
-      (org-tempus--reset-notification-state)
-      (org-tempus--start-timers)
-      (add-hook 'org-clock-in-hook #'org-tempus--update-session-start)
-      (add-hook 'org-clock-in-hook #'org-tempus--reset-notification-state)
-      (add-hook 'org-clock-in-hook #'org-tempus--update-mode-line t)
-      (add-hook 'org-clock-in-hook #'org-tempus--hide-org-mode-line t)
-      (add-hook 'org-clock-out-hook #'org-tempus--reset-notification-state)
-      (add-hook 'org-clock-out-hook #'org-tempus--update-mode-line)
-      (add-hook 'org-clock-out-hook #'org-tempus--hide-org-mode-line)
-      (advice-add 'org-clock-update-mode-line :after #'org-tempus--maybe-hide-org-mode-line)
-      (when org-tempus-add-to-global-mode-string
-        (or global-mode-string (setq global-mode-string '("")))
-        (or (memq org-tempus--mode-line-format global-mode-string)
-              (setq global-mode-string
-                    (append global-mode-string (list org-tempus--mode-line-format)))))
-        (setq org-tempus--saved-org-clock-clocked-in-display org-clock-clocked-in-display)
-        (setq org-clock-clocked-in-display nil)
-        (when org-tempus-hide-org-mode-line-string
-          (setq org-tempus--saved-org-mode-line-string org-mode-line-string)
-          (setq org-tempus--saved-org-mode-line-string-present nil)
-          (org-tempus--hide-org-mode-line))
-        (when (org-clock-is-active)
-          (org-tempus--update-session-start))
-        (org-tempus--update-mode-line))
-
-    (when org-tempus-add-to-global-mode-string
-      (or global-mode-string (setq global-mode-string '("")))
-      (setq global-mode-string
-            (remove org-tempus--mode-line-format global-mode-string))
-      (force-mode-line-update))
-    (setq org-clock-clocked-in-display org-tempus--saved-org-clock-clocked-in-display)
-    (when org-tempus-hide-org-mode-line-string
-      (setq org-mode-line-string org-tempus--saved-org-mode-line-string)
-      (if (org-clock-is-active)
-          (progn
-            (when (or org-tempus--saved-org-mode-line-string-present
-                      (memq org-clock-clocked-in-display '(mode-line both)))
-              (or global-mode-string (setq global-mode-string '("")))
-              (unless (memq 'org-mode-line-string global-mode-string)
-                (setq global-mode-string
-                      (append global-mode-string (list 'org-mode-line-string)))))
-            (org-clock-update-mode-line))
-        (setq global-mode-string
-              (delq 'org-mode-line-string global-mode-string))
-        (setq org-mode-line-string "")
-        (force-mode-line-update)))
-    (when org-tempus-dconf-path
-      (setq org-tempus--last-dconf-value nil)
-      (org-tempus--maybe-update-dconf ""))
-    (org-tempus--stop-timers)
-    (remove-hook 'org-clock-in-hook #'org-tempus--update-session-start)
-    (remove-hook 'org-clock-in-hook #'org-tempus--reset-notification-state)
-    (remove-hook 'org-clock-in-hook #'org-tempus--update-mode-line)
-    (remove-hook 'org-clock-in-hook #'org-tempus--hide-org-mode-line)
-    (remove-hook 'org-clock-out-hook #'org-tempus--hide-org-mode-line)
-    (remove-hook 'org-clock-out-hook #'org-tempus--update-mode-line)
-    (remove-hook 'org-clock-out-hook #'org-tempus--reset-notification-state)
-    (advice-remove 'org-clock-update-mode-line #'org-tempus--maybe-hide-org-mode-line)))
+      (org-tempus--enable)
+    (org-tempus--disable)))
 
 (provide 'org-tempus)
 ;;; org-tempus.el ends here
