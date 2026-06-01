@@ -200,7 +200,7 @@ Clear the baseline when idle monitoring is disabled."
   (if (org-tempus--idle-monitoring-enabled-p)
       (setq org-tempus--last-idle-check-time (or time (current-time))
             org-tempus--clock-active-at-last-idle-check
-            (org-clock-is-active))
+            (and (org-clock-is-active) t))
     (setq org-tempus--last-idle-check-time nil
           org-tempus--clock-active-at-last-idle-check nil)))
 
@@ -761,7 +761,7 @@ SWITCH-TO-STATE, FAIL-QUIETLY, and AT-TIME are the arguments of
            (format "Auto clocked out after %s idle."
                    (org-duration-from-minutes
                     (/ idle-seconds 60.0)))))
-        (if active
+        (if (and active (not (org-clock-is-active)))
             (when (or (not (numberp since-last))
                       (and (>= since-last org-tempus-idle-check-interval)
                            (<= since-last (* 2 org-tempus-idle-check-interval))))

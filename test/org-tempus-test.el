@@ -126,5 +126,21 @@
          nil nil requested)
         (should (equal clock-out-at requested))))))
 
+(ert-deftest org-tempus-idle-active-streak-does-not-grow-while-clocked-in ()
+  (let ((now (seconds-to-time 1060))
+        (org-tempus-idle-check-interval 60)
+        (org-tempus-idle-active-streak-seconds 120)
+        (org-tempus-auto-clock-enabled t)
+        (org-tempus-auto-clock-out-seconds 240)
+        (org-tempus--last-idle-check-time (seconds-to-time 1000))
+        (org-tempus--clock-active-at-last-idle-check t)
+        (org-tempus--idle-active-streak 540))
+    (cl-letf (((symbol-function 'current-time) (lambda () now))
+              ((symbol-function 'org-clock-is-active) (lambda () t))
+              ((symbol-function 'org-tempus--session-idle-seconds)
+               (lambda () 0.5)))
+      (org-tempus--handle-idle)
+      (should (= org-tempus--idle-active-streak 0)))))
+
 (provide 'org-tempus-test)
 ;;; org-tempus-test.el ends here
