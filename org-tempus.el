@@ -79,6 +79,12 @@ Debug logs are appended to the *Org-Tempus-Debug* buffer."
 (defvar org-tempus--idle-timer nil
   "Timer used to check session idle activity.")
 
+(defvar org-tempus--last-idle-check-time nil
+  "Time of the last awake baseline used to detect a suspend gap.")
+
+(defvar org-tempus--clock-active-at-last-idle-check nil
+  "Non-nil when a clock was active at the last awake baseline.")
+
 (defvar org-tempus--notification-reset-timer nil
   "Timer used to reset notification streaks.")
 
@@ -119,7 +125,8 @@ The value is a string like:
   :set (lambda (symbol value)
          (set-default symbol value)
          (setq org-tempus--last-dconf-value nil)
-         (when (bound-and-true-p org-tempus-mode)
+         (when (and (bound-and-true-p org-tempus-mode)
+                    (fboundp 'org-tempus--update-mode-line))
            (org-tempus--update-mode-line)))
   :group 'org-tempus)
 
@@ -182,6 +189,21 @@ When nil, start session tracking on clock-in."
             cooldown
             (if since (format "%.1fs" since) "n/a"))))
 
+(defun org-tempus--idle-monitoring-enabled-p ()
+  "Return non-nil when idle polling can maintain a suspend baseline."
+  (and (numberp org-tempus-idle-check-interval)
+       (> org-tempus-idle-check-interval 0)))
+
+(defun org-tempus--set-idle-check-baseline (&optional time)
+  "Record an awake suspend-detection baseline at TIME.
+Clear the baseline when idle monitoring is disabled."
+  (if (org-tempus--idle-monitoring-enabled-p)
+      (setq org-tempus--last-idle-check-time (or time (current-time))
+            org-tempus--clock-active-at-last-idle-check
+            (org-clock-is-active))
+    (setq org-tempus--last-idle-check-time nil
+          org-tempus--clock-active-at-last-idle-check nil)))
+
 (defun org-tempus--stop-timers ()
   "Stop Org Tempus timers."
   (when (timerp org-tempus--timer)
@@ -192,7 +214,9 @@ When nil, start session tracking on clock-in."
   (setq org-tempus--idle-timer nil)
   (when (timerp org-tempus--notification-reset-timer)
     (cancel-timer org-tempus--notification-reset-timer))
-  (setq org-tempus--notification-reset-timer nil))
+  (setq org-tempus--notification-reset-timer nil)
+  (setq org-tempus--last-idle-check-time nil)
+  (setq org-tempus--clock-active-at-last-idle-check nil))
 
 (defun org-tempus--start-timers ()
   "Start Org Tempus timers."
@@ -203,6 +227,7 @@ When nil, start session tracking on clock-in."
                      #'org-tempus--update-mode-line))
   (when (and (numberp org-tempus-idle-check-interval)
              (> org-tempus-idle-check-interval 0))
+    (org-tempus--set-idle-check-baseline)
     (setq org-tempus--idle-timer
           (run-at-time org-tempus-idle-check-interval
                        org-tempus-idle-check-interval
@@ -223,7 +248,8 @@ When nil, start session tracking on clock-in."
   :type 'integer
   :set (lambda (symbol value)
          (set-default symbol value)
-         (when (bound-and-true-p org-tempus-mode)
+         (when (and (bound-and-true-p org-tempus-mode)
+                    (fboundp 'org-tempus--restart-timers))
            (org-tempus--restart-timers)))
   :group 'org-tempus)
 
@@ -235,15 +261,13 @@ When nil, start session tracking on clock-in."
 (defvar org-tempus--auto-clock-out-time nil
   "Time when Org Tempus last auto clocked out.")
 
-(defvar org-tempus--last-idle-check-time nil
-  "Time when Org Tempus last checked for idle activity.")
-
 (defcustom org-tempus-idle-check-interval 60
   "Seconds between idle checks for out-of-clock activity."
   :type 'integer
   :set (lambda (symbol value)
          (set-default symbol value)
-         (when (bound-and-true-p org-tempus-mode)
+         (when (and (bound-and-true-p org-tempus-mode)
+                    (fboundp 'org-tempus--restart-timers))
            (org-tempus--restart-timers)))
   :group 'org-tempus)
 
@@ -300,7 +324,8 @@ Known providers are `emacs' (activity inside Emacs),
   :type 'boolean
   :set (lambda (symbol value)
          (set-default symbol value)
-         (when (bound-and-true-p org-tempus-mode)
+         (when (and (bound-and-true-p org-tempus-mode)
+                    (fboundp 'org-tempus--update-mode-line))
            (org-tempus--update-mode-line)))
   :group 'org-tempus)
 
@@ -493,6 +518,7 @@ Known providers are `emacs' (activity inside Emacs),
 (defun org-tempus--update-session-start ()
   "Update session start time.  Keep a short task change within the same session."
   (when org-clock-start-time
+    (org-tempus--set-idle-check-baseline)
     (org-tempus--reset-auto-clock-state)
     (let* ((last-out org-clock-out-time)
            (gap (and last-out
@@ -525,7 +551,6 @@ A session does not reset when switching tasks within
 (defun org-tempus--maybe-notify-session-threshold (session-seconds)
   "Send a one-time notification when SESSION-SECONDS crosses threshold."
   (when (and (>= session-seconds (* 60 org-tempus-session-threshold-minutes))
-             (not (org-tempus--suspend-gap-p))
              (org-tempus--notification-allowed-p))
     (org-tempus--record-notification)
     (let ((msg (format "Org Tempus session reached %s"
@@ -614,6 +639,72 @@ A session does not reset when switching tasks within
      (org-tempus--idle-seconds-from-freedesktop-screensaver))
     (_ nil)))
 
+(defun org-tempus--suspend-gap-seconds (&optional now)
+  "Return a pending suspected suspend gap in seconds, or nil.
+NOW defaults to `current-time'.  A normal scheduled idle poll is not
+enough evidence of suspension; at least one expected poll must have
+been missed."
+  (let* ((now (or now (current-time)))
+         (last-check org-tempus--last-idle-check-time)
+         (interval org-tempus-idle-check-interval)
+         (since-last
+          (and last-check
+               (float-time (time-subtract now last-check)))))
+    (when (and (numberp since-last)
+               (numberp interval)
+               (> interval 0)
+               (> since-last (* 2 interval))
+               org-tempus--clock-active-at-last-idle-check
+               org-tempus-auto-clock-enabled
+               (org-clock-is-active)
+               (numberp org-tempus-auto-clock-out-seconds)
+               (> org-tempus-auto-clock-out-seconds 0)
+               (>= since-last org-tempus-auto-clock-out-seconds))
+      since-last)))
+
+(defun org-tempus--maybe-auto-clock-out-after-suspend (&optional now)
+  "Auto clock out a running clock when NOW follows a suspend gap.
+Return non-nil when a clock is stopped."
+  (let* ((now (or now (current-time)))
+         (last-check org-tempus--last-idle-check-time)
+         (since-last (org-tempus--suspend-gap-seconds now)))
+    (when since-last
+      (org-tempus--debug "Auto clock-out after suspend gap: %.1fs" since-last)
+      ;; Update this before `org-clock-out' runs hooks that refresh the mode line.
+      (setq org-tempus--last-idle-check-time now)
+      (setq org-tempus--clock-active-at-last-idle-check nil)
+      (setq org-tempus--auto-clock-out-time now)
+      (if org-tempus-auto-clock-out-backdate
+          (org-clock-out nil t last-check)
+        (org-clock-out nil t))
+      (setq org-tempus--session-start-time nil)
+      (org-tempus--reset-notification-state)
+      (org-tempus--notify
+       (format "Auto clocked out after %s away."
+               (org-duration-from-minutes
+                (/ since-last 60.0))))
+      t)))
+
+(defun org-tempus--clock-out-advice (oldfun &optional switch-to-state fail-quietly at-time)
+  "Repair a pending suspend gap before OLDFUN writes a clock-out entry.
+SWITCH-TO-STATE, FAIL-QUIETLY, and AT-TIME are the arguments of
+`org-clock-out'.  An explicit AT-TIME is always preserved."
+  (let* ((now (current-time))
+         (since-last (and (not at-time)
+                          (org-tempus--suspend-gap-seconds now)))
+         (corrected-at-time
+          (if (and since-last org-tempus-auto-clock-out-backdate)
+              org-tempus--last-idle-check-time
+            at-time)))
+    (when since-last
+      (org-tempus--debug "Repair clock-out after suspend gap: %.1fs" since-last)
+      (setq org-tempus--last-idle-check-time now)
+      (setq org-tempus--clock-active-at-last-idle-check nil)
+      (setq org-tempus--session-start-time nil))
+    (prog1
+        (funcall oldfun switch-to-state fail-quietly corrected-at-time)
+      (org-tempus--set-idle-check-baseline))))
+
 (defun org-tempus--handle-idle ()
   "Handle idle checking, including auto clock-out and notifications."
   (let* ((idle-seconds (org-tempus--session-idle-seconds))
@@ -621,28 +712,13 @@ A session does not reset when switching tasks within
          (last-check org-tempus--last-idle-check-time)
          (since-last (and last-check
                           (float-time (time-subtract now last-check)))))
-    (setq org-tempus--last-idle-check-time now)
     (when (and (numberp since-last)
                (> since-last (* 2 org-tempus-idle-check-interval)))
       (org-tempus--debug "Reset activity streak after gap: %.1fs" since-last)
       (setq org-tempus--idle-active-streak 0))
-    (when (and since-last
-               org-tempus-auto-clock-enabled
-               (org-clock-is-active)
-               (> org-tempus-auto-clock-out-seconds 0)
-               (>= since-last org-tempus-auto-clock-out-seconds))
-      (org-tempus--debug "Auto clock-out after gap: %.1fs" since-last)
-      (setq org-tempus--auto-clock-out-time now)
-      (if org-tempus-auto-clock-out-backdate
-          (org-clock-out nil t last-check)
-        (org-clock-out nil t))
-      (setq org-tempus--session-start-time nil)
-      (org-tempus--reset-notification-state)
-      (org-tempus--update-mode-line)
-      (org-tempus--notify
-       (format "Auto clocked out after %s away."
-               (org-duration-from-minutes
-                (/ since-last 60.0)))))
+    (when (org-tempus--maybe-auto-clock-out-after-suspend now)
+      (org-tempus--update-mode-line))
+    (org-tempus--set-idle-check-baseline now)
     (when idle-seconds
       (let* ((active (< idle-seconds org-tempus-idle-check-interval))
              (start-time (time-subtract (current-time)
@@ -693,7 +769,6 @@ A session does not reset when switching tasks within
                     (+ org-tempus--idle-active-streak org-tempus-idle-check-interval)))
           (setq org-tempus--idle-active-streak 0))
         (when (and (not auto-clocked-in)
-                   (not (org-tempus--suspend-gap-p))
                    (>= org-tempus--idle-active-streak
                        org-tempus-idle-active-streak-seconds)
                    (not (org-clock-is-active)))
@@ -790,20 +865,9 @@ Return non-nil when an auto clock-in occurs."
                       "write" org-tempus-dconf-path
                       (org-tempus--gvariant-string value))))))
 
-(defun org-tempus--suspend-gap-p ()
-  "Return non-nil when a long gap suggests a suspended session."
-  (let ((since-last (and org-tempus--last-idle-check-time
-                         (float-time
-                          (time-subtract (current-time)
-                                         org-tempus--last-idle-check-time)))))
-    (and (numberp since-last)
-         org-tempus-auto-clock-enabled
-         (org-clock-is-active)
-         (> org-tempus-auto-clock-out-seconds 0)
-         (>= since-last org-tempus-auto-clock-out-seconds))))
-
 (defun org-tempus--update-mode-line ()
   "Update the Org Tempus mode line indicator."
+  (org-tempus--maybe-auto-clock-out-after-suspend)
   (let* ((total-minutes (org-tempus--sum-today-minutes))
          (total-seconds (* 60 total-minutes))
          (total-threshold-hit (and (> org-tempus-total-threshold-minutes 0)
@@ -862,8 +926,7 @@ Return non-nil when an auto clock-in occurs."
                           'keymap org-tempus--mode-line-map
                           'help-echo "Org Tempus"
                           'pointer 'hand)))
-    (unless (org-tempus--suspend-gap-p)
-      (org-tempus--maybe-notify-total-threshold total-seconds))
+    (org-tempus--maybe-notify-total-threshold total-seconds)
     (setq org-tempus-mode-line-string str))
   (org-tempus--maybe-update-dconf
    (substring-no-properties org-tempus-mode-line-string))
@@ -903,6 +966,7 @@ Return non-nil when an auto clock-in occurs."
   (remove-hook 'org-clock-out-hook #'org-tempus--hide-org-mode-line)
   (remove-hook 'org-clock-out-hook #'org-tempus--update-mode-line)
   (remove-hook 'org-clock-out-hook #'org-tempus--reset-notification-state)
+  (advice-remove 'org-clock-out #'org-tempus--clock-out-advice)
   (advice-remove 'org-clock-update-mode-line #'org-tempus--maybe-hide-org-mode-line))
 
 (defun org-tempus--enable ()
@@ -920,6 +984,7 @@ Return non-nil when an auto clock-in occurs."
   (add-hook 'org-clock-out-hook #'org-tempus--reset-notification-state)
   (add-hook 'org-clock-out-hook #'org-tempus--update-mode-line)
   (add-hook 'org-clock-out-hook #'org-tempus--hide-org-mode-line)
+  (advice-add 'org-clock-out :around #'org-tempus--clock-out-advice)
   (advice-add 'org-clock-update-mode-line :after #'org-tempus--maybe-hide-org-mode-line)
   (when org-tempus-add-to-global-mode-string
     (or global-mode-string (setq global-mode-string '("")))
