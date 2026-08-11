@@ -654,7 +654,6 @@ been missed."
                (numberp interval)
                (> interval 0)
                (> since-last (* 2 interval))
-               org-tempus--clock-active-at-last-idle-check
                org-tempus-auto-clock-enabled
                (org-clock-is-active)
                (numberp org-tempus-auto-clock-out-seconds)

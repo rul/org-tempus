@@ -47,7 +47,17 @@
   (org-tempus-test--with-clocked-suspend-state
     (cl-letf (((symbol-function 'org-clock-is-active) (lambda () t)))
       (should (= (org-tempus--suspend-gap-seconds (seconds-to-time 87400))
-                 86400)))))
+                 86400))))) ;; a day
+
+(ert-deftest org-tempus-detects-suspend-when-stale-baseline-saw-no-clock ()
+  "A stale baseline must not leave a currently running clock open.
+The current clock state is authoritative when deciding whether to repair a
+long gap, even if the stale baseline recorded no active clock."
+  (org-tempus-test--with-clocked-suspend-state
+    (let ((org-tempus--clock-active-at-last-idle-check nil))
+      (cl-letf (((symbol-function 'org-clock-is-active) (lambda () t)))
+        (should (= (org-tempus--suspend-gap-seconds (seconds-to-time 87400))
+                   86400)))))) ;; a day
 
 (ert-deftest org-tempus-clock-in-refreshes-a-stale-baseline ()
   (let ((now (seconds-to-time 87400))
