@@ -4,9 +4,12 @@
 [![MELPA Stable](https://stable.melpa.org/packages/org-tempus-badge.svg)](https://stable.melpa.org/#/org-tempus)
 
 `org-tempus` is an Emacs package to enhance Org's time tracking
-features by setting thresholds for session and daily clocked time, and
-sending notifications when they are reached. It optionally auto clocks
-in to or out of your tasks, and adjusts timestamps accordingly.
+features by setting thresholds for session and daily clocked time,
+showing them in the mode line, and sending notifications when they are
+reached. It optionally auto clocks in to or out of your tasks, and
+adjusts timestamps accordingly.
+
+<img src="https://raw.githubusercontent.com/rul/org-tempus/assets/screenshots/org-tempus-demo-captioned.gif" alt="The mode line through a work session: the session and effort thresholds turning red, an auto clock-out after 4 minutes idle, and an auto clock-in on return">
 
 ## Features
 - Thresholds for session and total daily clocked time.
