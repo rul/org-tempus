@@ -891,7 +891,6 @@ Return non-nil when an auto clock-in occurs."
                             (org-tempus--format-mode-line-item
                              "T" total-display)
                             "] "
-                            (org-tempus--current-task-name)
                             (let* ((task-minutes (org-tempus--current-task-time-minutes))
                                    (task-time (org-duration-from-minutes task-minutes))
                                    (effort-minutes (org-tempus--current-task-effort-minutes))
@@ -901,11 +900,12 @@ Return non-nil when an auto clock-in occurs."
                                                           (>= task-minutes effort-minutes))
                                                      (propertize task-time 'face 'error)
                                                    task-time)))
-                              (concat " <" task-display
+                              (concat "<" task-display
                                       (if effort
                                           (concat "/" effort)
                                         "")
-                                      ">"))))
+                                      "> "))
+                            (org-tempus--current-task-name)))
                 (let* ((break-seconds (org-tempus--current-break-duration))
                        (break-str (when break-seconds
                                     (org-duration-from-minutes
