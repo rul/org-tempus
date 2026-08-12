@@ -187,19 +187,6 @@ When nil, start session tracking on clock-in."
   :type 'integer
   :group 'org-tempus)
 
-(defun org-tempus--notification-status-string ()
-  "Return a debug string with notification rate-limit status."
-  (let* ((state org-tempus--notification-state)
-         (count (or (plist-get state :count) 0))
-         (last (plist-get state :last-time))
-         (cooldown org-tempus-notification-cooldown-seconds)
-         (since (and last (float-time (time-subtract (current-time) last)))))
-    (format "count %s/%s, cooldown %ss, since %s"
-            count
-            org-tempus-notification-max-count
-            cooldown
-            (if since (format "%.1fs" since) "n/a"))))
-
 (defun org-tempus--idle-monitoring-enabled-p ()
   "Return non-nil when idle polling can maintain a suspend baseline."
   (and (numberp org-tempus-idle-check-interval)
@@ -374,9 +361,10 @@ truncate."
 (defun org-tempus--notify (msg)
   "Notify user with MSG using desktop notifications when available."
   (when org-tempus-notifications-enabled
-    (org-tempus--debug "Notify: %s (%s)"
+    (org-tempus--debug "Notify: %s (count %s/%s)"
                        msg
-                       (org-tempus--notification-status-string))
+                       (or (plist-get org-tempus--notification-state :count) 0)
+                       org-tempus-notification-max-count)
     (let ((sent nil))
     (when (or (fboundp 'notifications-notify)
               (require 'notifications nil t))
