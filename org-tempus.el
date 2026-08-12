@@ -122,12 +122,7 @@ FORMAT-STRING and ARGS follow `format'."
       (goto-char (point-max))
       (insert (format-time-string "[%F %T] "))
       (insert (apply #'format format-string args))
-      (insert "\n")
-      (let ((max-bytes 1024))
-        (when (> (buffer-size) max-bytes)
-          (delete-region (point-min)
-                         (min (point-max)
-                              (- (buffer-size) max-bytes))))))))
+      (insert "\n"))))
 
 (defcustom org-tempus-dconf-path nil
   "When non-nil, post the Org Tempus mode line string to this dconf path.
