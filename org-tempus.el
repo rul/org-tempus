@@ -6,7 +6,7 @@
 ;; Author: Raul Benencia <id@rbenencia.name>
 ;; Maintainer: Raul Benencia <id@rbenencia.name>
 ;; URL: https://github.com/rul/org-tempus
-;; Version: 0.0.1
+;; Version: 0.0.3
 ;; Package-Requires: ((emacs "27.1"))
 ;; Keywords: calendar
 
