@@ -835,21 +835,20 @@ Return non-nil when an auto clock-in occurs."
     (force-mode-line-update))
   (setq org-clock-clocked-in-display org-tempus--saved-org-clock-clocked-in-display)
   (when org-tempus-hide-org-mode-line-string
-    ;; No need to restore `org-mode-line-string': both branches below
-    ;; overwrite it, via `org-clock-update-mode-line' or with "".
-    (if (org-clock-is-active)
-        (progn
-          (when (or org-tempus--saved-org-mode-line-string-present
-                    (memq org-clock-clocked-in-display '(mode-line both)))
-            (or global-mode-string (setq global-mode-string '("")))
-            (unless (memq 'org-mode-line-string global-mode-string)
-              (setq global-mode-string
-                    (append global-mode-string (list 'org-mode-line-string)))))
-          (org-clock-update-mode-line))
-      (setq global-mode-string
-            (delq 'org-mode-line-string global-mode-string))
-      (setq org-mode-line-string "")
-      (force-mode-line-update)))
+    ;; No need to restore `org-mode-line-string': it is set below, or by
+    ;; `org-clock-in' on the next clock-in.  Nor to remove it from
+    ;; `global-mode-string' when idle: it was taken out at enable, and
+    ;; nothing puts it back while Org Tempus is on.
+    (if (not (org-clock-is-active))
+        (setq org-mode-line-string "")
+      (when (or org-tempus--saved-org-mode-line-string-present
+                (memq org-clock-clocked-in-display '(mode-line both)))
+        (or global-mode-string (setq global-mode-string '("")))
+        (or (memq 'org-mode-line-string global-mode-string)
+            (setq global-mode-string
+                  (append global-mode-string '(org-mode-line-string)))))
+      (org-clock-update-mode-line))
+    (force-mode-line-update))
   (when org-tempus-dconf-path
     (setq org-tempus--last-dconf-value nil)
     (org-tempus--maybe-update-dconf ""))
