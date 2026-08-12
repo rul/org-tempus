@@ -601,30 +601,14 @@ A session does not reset when switching tasks within
         (float-time idle)
       0)))
 
-(defun org-tempus--idle-seconds-from-mutter ()
-  "Return idle seconds from GNOME Mutter's IdleMonitor."
+(defun org-tempus--idle-seconds-from-dbus (service path interface method)
+  "Return idle seconds from METHOD on SERVICE, PATH, and INTERFACE.
+METHOD is expected to answer in milliseconds.  Return nil when the
+session bus, the service, or the method is unavailable."
   (when (require 'dbus nil t)
     (condition-case _err
         (let ((idle-ms (dbus-call-method
-                        :session
-                        "org.gnome.Mutter.IdleMonitor"
-                        "/org/gnome/Mutter/IdleMonitor/Core"
-                        "org.gnome.Mutter.IdleMonitor"
-                        "GetIdletime")))
-          (when (numberp idle-ms)
-            (/ idle-ms 1000.0)))
-      (error nil))))
-
-(defun org-tempus--idle-seconds-from-freedesktop-screensaver ()
-  "Return idle seconds from org.freedesktop.ScreenSaver."
-  (when (require 'dbus nil t)
-    (condition-case _err
-        (let ((idle-ms (dbus-call-method
-                        :session
-                        "org.freedesktop.ScreenSaver"
-                        "/org/freedesktop/ScreenSaver"
-                        "org.freedesktop.ScreenSaver"
-                        "GetSessionIdleTime")))
+                        :session service path interface method)))
           (when (numberp idle-ms)
             (/ idle-ms 1000.0)))
       (error nil))))
@@ -633,9 +617,17 @@ A session does not reset when switching tasks within
   "Return session idle time in seconds or nil when unavailable."
   (pcase org-tempus-idle-provider
     ('emacs (org-tempus--idle-seconds-from-emacs))
-    ('mutter (org-tempus--idle-seconds-from-mutter))
+    ('mutter (org-tempus--idle-seconds-from-dbus
+              "org.gnome.Mutter.IdleMonitor"
+              "/org/gnome/Mutter/IdleMonitor/Core"
+              "org.gnome.Mutter.IdleMonitor"
+              "GetIdletime"))
     ('freedesktop-screensaver
-     (org-tempus--idle-seconds-from-freedesktop-screensaver))
+     (org-tempus--idle-seconds-from-dbus
+      "org.freedesktop.ScreenSaver"
+      "/org/freedesktop/ScreenSaver"
+      "org.freedesktop.ScreenSaver"
+      "GetSessionIdleTime"))
     (_ nil)))
 
 (defun org-tempus--suspend-gap-seconds (&optional now)
