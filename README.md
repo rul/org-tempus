@@ -18,11 +18,9 @@ adjusts timestamps accordingly.
 - Auto clocks out when idle.
 - Supports different sources for detecting idleness: Emacs itself,
   Mutter (for GNOME), and freedesktop.org ScreenSaver.
-- Sends notifications to take a break after the session threshold is
-  reached.
-- Sends notifications after a total daily time is reached.
-- Sends notifications when activity is detected, but no task is
-  clocked in.
+- Sends notifications when the session threshold is reached, when the
+  daily total is reached, and when activity is detected while no task
+  is clocked in.
 - Optional integration with dconf. This is useful to display
   `org-tempus` values in GNOME's panel, for example. It can be used
   with extensions such as
@@ -122,50 +120,52 @@ An example minimal configuration could look like this:
 - `org-tempus-toggle-notifications`: enable or disable notifications.
 - `org-tempus-toggle-auto-clock`: enable or disable auto clock in/out.
 
-## Visual overview
+## Mode line
 
-### Mode line
-The mode line will show the session time (S), the total time (T), and the current task's total clocked time today.
+While a task is clocked in, the mode line shows the session time (S),
+the day's total (T), the task's clocked time (against its effort, when
+one is set), and its heading:
 
-<img src="https://raw.githubusercontent.com/rul/org-tempus/assets/screenshots/org-tempus-clocked-in.png" height="25" alt="Clocked in">
+```
+⏳[S 0:20 | T 3:20] <0:47/1:00> Write release notes
+```
 
-When no task is clocked in, the mode line will show the total time (T), and the break time (B).
-<img src="https://raw.githubusercontent.com/rul/org-tempus/assets/screenshots/org-tempus-break.png" height="25" alt="Break">
+When no task is clocked in, it shows the day's total and the break
+time (B):
 
-Note: by default, `org-tempus` hides the stock Org mode line indicator and
-replaces it with its own entry. This is recommended, but you can toggle it
-off with `org-tempus-hide-org-mode-line-string` (and also control whether
-`org-tempus` is added to the global mode line via
-`org-tempus-add-to-global-mode-string`).
+```
+⌛️[T 3:20 | B 0:12]
+```
 
-### Different face when thresholds are reached
-When thresholds are reached, the corresponding mode line section will
-change its color accordingly.
+The session time and the task time turn red once the session threshold
+and the task's effort are reached, as in the recording above.
 
-<img src="https://raw.githubusercontent.com/rul/org-tempus/assets/screenshots/org-tempus-face-session.png" height="25" alt="Session threshold face">
-<img src="https://raw.githubusercontent.com/rul/org-tempus/assets/screenshots/org-tempus-face-total-time.png" height="25" alt="Total time threshold face">
+The legend is a reminder of what each number means. Once you no longer
+need it, `org-tempus-toggle-legend` drops the labels:
 
-### Legend off
-The legend provides reminders of what each number means: `S` for
-session. `T` for total time. After getting used to these numbers, you
-may want to toggle them off to save space in your mode line. Legend can
-be toggled off with `org-tempus-toggle-legend`.
+```
+⏳[0:20|3:20] <0:47/1:00> Write release notes
+```
 
-<img src="https://raw.githubusercontent.com/rul/org-tempus/assets/screenshots/org-tempus-toggled-legend.png" height="25" alt="Legend off">
-<img src="https://raw.githubusercontent.com/rul/org-tempus/assets/screenshots/org-tempus-toggled-legend-break.png" height="25" alt="Legend off with break">
+By default `org-tempus` hides the stock Org mode line indicator and
+replaces it with its own entry. This is recommended, but you can toggle
+it off with `org-tempus-hide-org-mode-line-string`, and control whether
+`org-tempus` is added to the global mode line at all with
+`org-tempus-add-to-global-mode-string`.
 
-### Notifications
-Notifications are sent when:
-- Session threshold is reached
-- Total time threshold is reached
-- Activity is detected but no task is clocked in.
+## Notifications
+
+Notifications are sent when the session threshold is reached, when the
+total time threshold is reached, and when activity is detected while no
+task is clocked in. They can be toggled off with
+`org-tempus-toggle-notifications`.
 
 <img src="https://raw.githubusercontent.com/rul/org-tempus/assets/screenshots/org-tempus-notifications.png" alt="Session threshold, total time threshold, and activity-without-a-clock notifications">
 
-Notifications can be toggled off with `org-tempus-toggle-notifications`.
+## GNOME panel
 
-### GNOME / dconf
-The optional integration with dconf allows for integration with
-GNOME's panel, so you can see your timers even if you aren't using Emacs.
+The optional dconf integration writes the mode line string where
+GNOME's panel can pick it up, so you can see your timers even when you
+aren't looking at Emacs.
 
 <img src="https://raw.githubusercontent.com/rul/org-tempus/assets/screenshots/org-tempus-dconf-gnome.png" height="25" alt="GNOME panel integration">
