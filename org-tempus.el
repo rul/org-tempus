@@ -106,8 +106,11 @@ Debug logs are appended to the *Org-Tempus-Debug* buffer."
 (defvar org-tempus--last-dconf-value nil
   "Last string posted to dconf, to avoid redundant updates.")
 
-(defvar org-tempus--notification-state nil
-  "Plist storing notification state for notifications.")
+(defvar org-tempus--notification-count 0
+  "Notifications sent in the current streak.")
+
+(defvar org-tempus--notification-last-time nil
+  "Time of the last notification sent, or nil.")
 
 (declare-function notifications-notify "notifications" (&rest args))
 
@@ -335,7 +338,7 @@ The `org-tempus-mode' guard matters: `org-tempus--disable' calls
   (when org-tempus-notifications-enabled
     (org-tempus--debug "Notify: %s (count %s/%s)"
                        msg
-                       (or (plist-get org-tempus--notification-state :count) 0)
+                       org-tempus--notification-count
                        org-tempus-notification-max-count)
     (let ((sent nil))
       (when (or (fboundp 'notifications-notify)
@@ -424,7 +427,8 @@ See `org-tempus-task-name-max-length'."
 
 (defun org-tempus--reset-notification-state ()
   "Reset notification state."
-  (setq org-tempus--notification-state nil)
+  (setq org-tempus--notification-count 0)
+  (setq org-tempus--notification-last-time nil)
   (setq org-tempus--idle-active-streak 0))
 
 (defun org-tempus--reset-auto-clock-state ()
@@ -435,24 +439,17 @@ See `org-tempus-task-name-max-length'."
 
 (defun org-tempus--notification-allowed-p ()
   "Return non-nil when a notification can be sent."
-  (let* ((state org-tempus--notification-state)
-         (count (plist-get state :count))
-         (last (plist-get state :last-time))
-         (max-count org-tempus-notification-max-count)
-         (cooldown org-tempus-notification-cooldown-seconds)
-         (since (and last
-                     (float-time (time-subtract (current-time) last)))))
-    (and (> max-count 0)
-         (< (or count 0) max-count)
-         (or (not last) (>= since cooldown)))))
+  (let ((last org-tempus--notification-last-time))
+    (and (> org-tempus-notification-max-count 0)
+         (< org-tempus--notification-count org-tempus-notification-max-count)
+         (or (not last)
+             (>= (float-time (time-subtract (current-time) last))
+                 org-tempus-notification-cooldown-seconds)))))
 
 (defun org-tempus--record-notification ()
   "Record a notification."
-  (let* ((state org-tempus--notification-state)
-         (count (1+ (or (plist-get state :count) 0))))
-    (setq org-tempus--notification-state
-          (plist-put (plist-put (or state nil) :count count)
-                     :last-time (current-time)))))
+  (setq org-tempus--notification-count (1+ org-tempus--notification-count))
+  (setq org-tempus--notification-last-time (current-time)))
 
 (defun org-tempus--update-session-start ()
   "Update session start time.  Keep a short task change within the same session."
