@@ -309,7 +309,11 @@ truncate."
   "Notification id used to replace existing notifications.")
 
 (defun org-tempus--hide-org-mode-line ()
-  "Hide the stock Org mode line indicator while Org Tempus is active."
+  "Hide the stock Org mode line indicator while Org Tempus is active.
+Only an entry left over from before Org Tempus was enabled needs
+removing: `org-tempus--enable' sets `org-clock-clocked-in-display'
+to nil, so Org itself never appends `org-mode-line-string' to
+`global-mode-string' again."
   (when org-tempus-hide-org-mode-line-string
     (setq org-mode-line-string nil)
     (when (memq 'org-mode-line-string global-mode-string)
@@ -317,13 +321,6 @@ truncate."
     (setq global-mode-string
           (delq 'org-mode-line-string global-mode-string))
     (force-mode-line-update)))
-
-(defun org-tempus--maybe-hide-org-mode-line (&rest _)
-  "Hide Org's mode line string when Org Tempus is active.
-The `org-tempus-mode' guard matters: `org-tempus--disable' calls
-`org-clock-update-mode-line' while this advice is still installed."
-  (when org-tempus-mode
-    (org-tempus--hide-org-mode-line)))
 
 (defun org-tempus--notify (msg)
   "Notify user with MSG using desktop notifications when available."
@@ -860,12 +857,9 @@ Return non-nil when an auto clock-in occurs."
   (remove-hook 'org-clock-in-hook #'org-tempus--update-session-start)
   (remove-hook 'org-clock-in-hook #'org-tempus--reset-notification-state)
   (remove-hook 'org-clock-in-hook #'org-tempus--update-mode-line)
-  (remove-hook 'org-clock-in-hook #'org-tempus--hide-org-mode-line)
-  (remove-hook 'org-clock-out-hook #'org-tempus--hide-org-mode-line)
   (remove-hook 'org-clock-out-hook #'org-tempus--update-mode-line)
   (remove-hook 'org-clock-out-hook #'org-tempus--reset-notification-state)
-  (advice-remove 'org-clock-out #'org-tempus--clock-out-advice)
-  (advice-remove 'org-clock-update-mode-line #'org-tempus--maybe-hide-org-mode-line))
+  (advice-remove 'org-clock-out #'org-tempus--clock-out-advice))
 
 (defun org-tempus--enable ()
   "Enable org-tempus integrations."
@@ -874,12 +868,9 @@ Return non-nil when an auto clock-in occurs."
   (add-hook 'org-clock-in-hook #'org-tempus--update-session-start)
   (add-hook 'org-clock-in-hook #'org-tempus--reset-notification-state)
   (add-hook 'org-clock-in-hook #'org-tempus--update-mode-line t)
-  (add-hook 'org-clock-in-hook #'org-tempus--hide-org-mode-line t)
   (add-hook 'org-clock-out-hook #'org-tempus--reset-notification-state)
   (add-hook 'org-clock-out-hook #'org-tempus--update-mode-line)
-  (add-hook 'org-clock-out-hook #'org-tempus--hide-org-mode-line)
   (advice-add 'org-clock-out :around #'org-tempus--clock-out-advice)
-  (advice-add 'org-clock-update-mode-line :after #'org-tempus--maybe-hide-org-mode-line)
   (when org-tempus-add-to-global-mode-string
     (or global-mode-string (setq global-mode-string '("")))
     (or (memq org-tempus--mode-line-format global-mode-string)
