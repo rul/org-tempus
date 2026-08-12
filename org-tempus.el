@@ -313,12 +313,6 @@ truncate."
 (defvar org-tempus-mode-line-string ""
   "Org Tempus mode line indicator.")
 
-(defvar org-tempus--mode-line-map
-  (let ((map (make-sparse-keymap)))
-    (define-key map [mode-line mouse-1] #'ignore)
-    map)
-  "Keymap used for the Org Tempus mode line.")
-
 (defconst org-tempus--mode-line-format '(:eval org-tempus-mode-line-string)
   "Mode line construct used by Org Tempus.")
 
@@ -878,12 +872,7 @@ Return non-nil when an auto clock-in occurs."
                                        "B" break-str))
                             "")
                           "]"))))
-         (str (propertize raw
-                          'mouse-face 'mode-line-highlight
-                          'local-map org-tempus--mode-line-map
-                          'keymap org-tempus--mode-line-map
-                          'help-echo "Org Tempus"
-                          'pointer 'hand)))
+         (str (propertize raw 'help-echo "Org Tempus")))
     (org-tempus--maybe-notify-total-threshold total-seconds)
     (setq org-tempus-mode-line-string str))
   (org-tempus--maybe-update-dconf
