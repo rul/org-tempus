@@ -381,12 +381,10 @@ See `org-tempus-task-name-max-length'."
   "Return effort for current task in minutes, or nil."
   (let ((marker (and (org-clock-is-active) org-clock-marker)))
     (when (and marker (marker-buffer marker))
-      (with-current-buffer (marker-buffer marker)
-        (when (derived-mode-p 'org-mode)
-          (org-with-point-at marker
-            (let ((effort (org-entry-get nil "EFFORT")))
-              (when effort
-                (org-duration-to-minutes effort)))))))))
+      (org-with-point-at marker
+        (let ((effort (org-entry-get nil "EFFORT")))
+          (when effort
+            (org-duration-to-minutes effort)))))))
 
 (defun org-tempus-reset-session ()
   "Reset the current session timer."
@@ -748,9 +746,8 @@ Return non-nil when an auto clock-in occurs."
 Return non-nil when clock-in succeeds."
   (let ((marker (org-id-find org-tempus-auto-clock-default-task-id 'marker)))
     (when (and marker (marker-buffer marker))
-      (with-current-buffer (marker-buffer marker)
-        (org-with-point-at marker
-          (org-clock-in nil start-time)))
+      (org-with-point-at marker
+        (org-clock-in nil start-time))
       t)))
 
 (defun org-tempus--maybe-auto-clock-in-default (&optional start-time)
