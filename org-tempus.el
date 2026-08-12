@@ -90,8 +90,7 @@ Debug logs are appended to the *Org-Tempus-Debug* buffer."
   :type 'integer
   :set (lambda (symbol value)
          (set-default symbol value)
-         (when (and (bound-and-true-p org-tempus-mode)
-                    (fboundp 'org-tempus--restart-timers))
+         (when (bound-and-true-p org-tempus-mode)
            (org-tempus--restart-timers)))
   :group 'org-tempus)
 
@@ -100,8 +99,7 @@ Debug logs are appended to the *Org-Tempus-Debug* buffer."
   :type 'integer
   :set (lambda (symbol value)
          (set-default symbol value)
-         (when (and (bound-and-true-p org-tempus-mode)
-                    (fboundp 'org-tempus--restart-timers))
+         (when (bound-and-true-p org-tempus-mode)
            (org-tempus--restart-timers)))
   :group 'org-tempus)
 
@@ -136,8 +134,7 @@ The value is a string like:
   :set (lambda (symbol value)
          (set-default symbol value)
          (setq org-tempus--last-dconf-value nil)
-         (when (and (bound-and-true-p org-tempus-mode)
-                    (fboundp 'org-tempus--update-mode-line))
+         (when (bound-and-true-p org-tempus-mode)
            (org-tempus--update-mode-line)))
   :group 'org-tempus)
 
@@ -295,8 +292,7 @@ truncate."
   :type 'boolean
   :set (lambda (symbol value)
          (set-default symbol value)
-         (when (and (bound-and-true-p org-tempus-mode)
-                    (fboundp 'org-tempus--update-mode-line))
+         (when (bound-and-true-p org-tempus-mode)
            (org-tempus--update-mode-line)))
   :group 'org-tempus)
 
