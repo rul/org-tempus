@@ -12,7 +12,6 @@
          (org-tempus-auto-clock-out-seconds 240)
          (org-tempus-auto-clock-out-backdate t)
          (org-tempus--last-idle-check-time (seconds-to-time 1000))
-         (org-tempus--clock-active-at-last-idle-check t)
          (org-tempus--auto-clock-out-time nil)
          (org-tempus--session-start-time (seconds-to-time 1000))
          (org-tempus--notification-state nil)
@@ -26,15 +25,13 @@
         (org-tempus--timer nil)
         (org-tempus--idle-timer nil)
         (org-tempus--notification-reset-timer nil)
-        (org-tempus--last-idle-check-time nil)
-        (org-tempus--clock-active-at-last-idle-check nil))
+        (org-tempus--last-idle-check-time nil))
     (cl-letf (((symbol-function 'current-time) (lambda () now))
               ((symbol-function 'org-clock-is-active) (lambda () t))
               ((symbol-function 'run-at-time) (lambda (&rest _args) 'timer))
               ((symbol-function 'timerp) (lambda (_timer) nil)))
       (org-tempus--start-timers)
-      (should (equal org-tempus--last-idle-check-time now))
-      (should org-tempus--clock-active-at-last-idle-check))))
+      (should (equal org-tempus--last-idle-check-time now)))))
 
 (ert-deftest org-tempus-regular-poll-is-not-a-suspend-gap ()
   (org-tempus-test--with-clocked-suspend-state
@@ -49,23 +46,12 @@
       (should (= (org-tempus--suspend-gap-seconds (seconds-to-time 87400))
                  86400))))) ;; a day
 
-(ert-deftest org-tempus-detects-suspend-when-stale-baseline-saw-no-clock ()
-  "A stale baseline must not leave a currently running clock open.
-The current clock state is authoritative when deciding whether to repair a
-long gap, even if the stale baseline recorded no active clock."
-  (org-tempus-test--with-clocked-suspend-state
-    (let ((org-tempus--clock-active-at-last-idle-check nil))
-      (cl-letf (((symbol-function 'org-clock-is-active) (lambda () t)))
-        (should (= (org-tempus--suspend-gap-seconds (seconds-to-time 87400))
-                   86400)))))) ;; a day
-
 (ert-deftest org-tempus-clock-in-refreshes-a-stale-baseline ()
   (let ((now (seconds-to-time 87400))
         (org-tempus-idle-check-interval 60)
         (org-tempus-auto-clock-enabled t)
         (org-tempus-auto-clock-out-seconds 240)
         (org-tempus--last-idle-check-time (seconds-to-time 1000))
-        (org-tempus--clock-active-at-last-idle-check nil)
         (org-tempus--session-start-time nil)
         (org-tempus--notification-state nil)
         (org-clock-start-time (seconds-to-time 87400))
@@ -74,7 +60,6 @@ long gap, even if the stale baseline recorded no active clock."
               ((symbol-function 'org-clock-is-active) (lambda () t)))
       (org-tempus--update-session-start)
       (should (equal org-tempus--last-idle-check-time now))
-      (should org-tempus--clock-active-at-last-idle-check)
       (should-not (org-tempus--suspend-gap-seconds now)))))
 
 (ert-deftest org-tempus-mode-line-repairs-suspend-before-reading-totals ()
@@ -118,8 +103,7 @@ long gap, even if the stale baseline recorded no active clock."
            (setq clock-active nil))
          nil nil nil)
         (should (equal clock-out-at (seconds-to-time 1000)))
-        (should (equal org-tempus--last-idle-check-time now))
-        (should-not org-tempus--clock-active-at-last-idle-check)))))
+        (should (equal org-tempus--last-idle-check-time now))))))
 
 (ert-deftest org-tempus-manual-clock-out-preserves-explicit-time ()
   (org-tempus-test--with-clocked-suspend-state
@@ -143,7 +127,6 @@ long gap, even if the stale baseline recorded no active clock."
         (org-tempus-auto-clock-enabled t)
         (org-tempus-auto-clock-out-seconds 240)
         (org-tempus--last-idle-check-time (seconds-to-time 1000))
-        (org-tempus--clock-active-at-last-idle-check t)
         (org-tempus--idle-active-streak 540))
     (cl-letf (((symbol-function 'current-time) (lambda () now))
               ((symbol-function 'org-clock-is-active) (lambda () t))

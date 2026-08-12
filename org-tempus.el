@@ -82,9 +82,6 @@ Debug logs are appended to the *Org-Tempus-Debug* buffer."
 (defvar org-tempus--last-idle-check-time nil
   "Time of the last awake baseline used to detect a suspend gap.")
 
-(defvar org-tempus--clock-active-at-last-idle-check nil
-  "Non-nil when a clock was active at the last awake baseline.")
-
 (defvar org-tempus--notification-reset-timer nil
   "Timer used to reset notification streaks.")
 
@@ -211,12 +208,9 @@ When nil, start session tracking on clock-in."
 (defun org-tempus--set-idle-check-baseline (&optional time)
   "Record an awake suspend-detection baseline at TIME.
 Clear the baseline when idle monitoring is disabled."
-  (if (org-tempus--idle-monitoring-enabled-p)
-      (setq org-tempus--last-idle-check-time (or time (current-time))
-            org-tempus--clock-active-at-last-idle-check
-            (and (org-clock-is-active) t))
-    (setq org-tempus--last-idle-check-time nil
-          org-tempus--clock-active-at-last-idle-check nil)))
+  (setq org-tempus--last-idle-check-time
+        (and (org-tempus--idle-monitoring-enabled-p)
+             (or time (current-time)))))
 
 (defun org-tempus--stop-timers ()
   "Stop Org Tempus timers."
@@ -229,8 +223,7 @@ Clear the baseline when idle monitoring is disabled."
   (when (timerp org-tempus--notification-reset-timer)
     (cancel-timer org-tempus--notification-reset-timer))
   (setq org-tempus--notification-reset-timer nil)
-  (setq org-tempus--last-idle-check-time nil)
-  (setq org-tempus--clock-active-at-last-idle-check nil))
+  (setq org-tempus--last-idle-check-time nil))
 
 (defun org-tempus--start-timers ()
   "Start Org Tempus timers."
@@ -677,7 +670,6 @@ Return non-nil when a clock is stopped."
       (org-tempus--debug "Auto clock-out after suspend gap: %.1fs" since-last)
       ;; Update this before `org-clock-out' runs hooks that refresh the mode line.
       (setq org-tempus--last-idle-check-time now)
-      (setq org-tempus--clock-active-at-last-idle-check nil)
       (setq org-tempus--auto-clock-out-time now)
       (if org-tempus-auto-clock-out-backdate
           (org-clock-out nil t last-check)
@@ -704,7 +696,6 @@ SWITCH-TO-STATE, FAIL-QUIETLY, and AT-TIME are the arguments of
     (when since-last
       (org-tempus--debug "Repair clock-out after suspend gap: %.1fs" since-last)
       (setq org-tempus--last-idle-check-time now)
-      (setq org-tempus--clock-active-at-last-idle-check nil)
       (setq org-tempus--session-start-time nil))
     (prog1
         (funcall oldfun switch-to-state fail-quietly corrected-at-time)
