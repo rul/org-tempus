@@ -59,15 +59,6 @@ work sessions of 30 minutes, and 5 hours of total work.
 M-x package-install RET org-tempus RET
 ```
 
-Or with `use-package`:
-
-```lisp
-(use-package org-tempus
-  :ensure t
-  :init
-  (org-tempus-mode 1))
-```
-
 If you don't have MELPA in your archives yet:
 
 ```lisp
@@ -83,30 +74,48 @@ To follow the development version instead of a release:
 
 ## Configuration
 
-`org-tempus` has many knobs. They are all documented, and can be
-checked out with `M-x customize-group` or `M-x apropos-variable`.
+### Minimal
 
-These are the most relevant:
-- `org-tempus-session-threshold-minutes`: continuous session notification threshold.
-- `org-tempus-total-threshold-minutes`: total daily notification threshold.
-- `org-tempus-auto-clock-enabled`: master switch for auto clock in/out. It's off by default.
-- `org-tempus-auto-clock-default-task-id`: Org ID of the default task
-  for auto clock-in. You can generate one by running
-  `org-id-get-create` on a heading.
-- `org-tempus-idle-provider`: idle source (`emacs`, `mutter`, `freedesktop-screensaver`).
-- `org-tempus-notifications-enabled`: enable/disable notifications.
-- `org-tempus-dconf-path`: write mode line string to dconf (optional GNOME integration).
-
-An example minimal configuration could look like this:
+Turn it on and keep Org's defaults. You get the mode line and the
+notifications, and you keep clocking in and out by hand:
 
 ```lisp
-(setq
- org-tempus-auto-clock-enabled t
- org-tempus-auto-clock-default-task-id "6fc9cfbc-0cf6-4c3f-87a9-cc49a7b6ea7b"
- org-tempus-idle-provider 'mutter
- org-tempus-dconf-path "/org/gnome/shell/extensions/simple-message/message"
- )
+(use-package org-tempus
+  :ensure t
+  :init
+  (org-tempus-mode 1))
 ```
+
+### Opinionated
+
+This is the setup the [example workflow](#example-workflow) above
+describes: auto clock in and out around a default task, idle time read
+from Mutter, and the timers mirrored to GNOME's panel.
+
+```lisp
+(use-package org-tempus
+  :ensure t
+  :custom
+  (org-tempus-auto-clock-enabled t)
+  (org-tempus-auto-clock-default-task-id "6fc9cfbc-0cf6-4c3f-87a9-cc49a7b6ea7b")
+  (org-tempus-idle-provider 'mutter)
+  (org-tempus-dconf-path "/org/gnome/shell/extensions/simple-message/message")
+  :init
+  (org-tempus-mode 1))
+```
+
+### Options
+
+Every knob is documented and browsable with `M-x customize-group RET
+org-tempus` or `M-x apropos-variable`. The ones worth knowing about:
+
+- `org-tempus-session-threshold-minutes`: continuous session notification threshold.
+- `org-tempus-total-threshold-minutes`: total daily notification threshold.
+- `org-tempus-auto-clock-enabled`: master switch for auto clock in/out. Off by default.
+- `org-tempus-auto-clock-default-task-id`: Org ID of the task auto clock-in falls back to.
+- `org-tempus-idle-provider`: idle source (`emacs`, `mutter`, `freedesktop-screensaver`).
+- `org-tempus-notifications-enabled`: enable/disable notifications.
+- `org-tempus-dconf-path`: write the mode line string to dconf (optional GNOME integration).
 
 ## Commands
 
