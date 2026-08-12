@@ -407,10 +407,6 @@ See `org-tempus-task-name-max-length'."
                                   nil nil t)
       name)))
 
-(defun org-tempus--sum-today ()
-  "Return total time clocked today across agenda files as a duration string."
-  (org-duration-from-minutes (org-tempus--sum-today-minutes)))
-
 (defun org-tempus--sum-today-minutes ()
   "Return total time clocked today across agenda files in minutes."
   (let* ((range (org-clock-special-range 'today nil t))
@@ -422,20 +418,6 @@ See `org-tempus-task-name-max-length'."
         (with-current-buffer (find-file-noselect file)
           (setq total (+ total (org-clock-sum tstart tend))))))
     total))
-
-(defun org-tempus--current-task-time ()
-  "Return clocked time for current task as a duration string."
-  (org-duration-from-minutes (org-tempus--current-task-time-minutes)))
-
-(defun org-tempus--current-task-time-minutes ()
-  "Return clocked time for current task in minutes."
-  (org-clock-get-clocked-time))
-
-(defun org-tempus--current-task-effort ()
-  "Return effort for current task as a duration string, or nil."
-  (let ((minutes (org-tempus--current-task-effort-minutes)))
-    (when minutes
-      (org-duration-from-minutes minutes))))
 
 (defun org-tempus--current-task-effort-minutes ()
   "Return effort for current task in minutes, or nil."
@@ -880,7 +862,7 @@ Return non-nil when an auto clock-in occurs."
                             (org-tempus--format-mode-line-item
                              "T" total-display)
                             "] "
-                            (let* ((task-minutes (org-tempus--current-task-time-minutes))
+                            (let* ((task-minutes (org-clock-get-clocked-time))
                                    (task-time (org-duration-from-minutes task-minutes))
                                    (effort-minutes (org-tempus--current-task-effort-minutes))
                                    (effort (when effort-minutes
