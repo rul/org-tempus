@@ -182,8 +182,7 @@ When nil, start session tracking on clock-in."
 Clear the baseline when idle polling is disabled, since without it
 nothing refreshes the baseline and every gap looks like a suspend."
   (setq org-tempus--last-idle-check-time
-        (and (numberp org-tempus-idle-check-interval)
-             (> org-tempus-idle-check-interval 0)
+        (and (> org-tempus-idle-check-interval 0)
              (or time (current-time)))))
 
 (defun org-tempus--stop-timers ()
@@ -206,15 +205,13 @@ nothing refreshes the baseline and every gap looks like a suspend."
         (run-at-time org-tempus-update-interval
                      org-tempus-update-interval
                      #'org-tempus--update-mode-line))
-  (when (and (numberp org-tempus-idle-check-interval)
-             (> org-tempus-idle-check-interval 0))
+  (when (> org-tempus-idle-check-interval 0)
     (org-tempus--set-idle-check-baseline)
     (setq org-tempus--idle-timer
           (run-at-time org-tempus-idle-check-interval
                        org-tempus-idle-check-interval
                        #'org-tempus--handle-idle)))
-  (when (and (numberp org-tempus-notification-reset-seconds)
-             (> org-tempus-notification-reset-seconds 0))
+  (when (> org-tempus-notification-reset-seconds 0)
     (setq org-tempus--notification-reset-timer
           (run-at-time org-tempus-notification-reset-seconds
                        org-tempus-notification-reset-seconds
@@ -578,13 +575,11 @@ been missed."
          (since-last
           (and last-check
                (float-time (time-subtract now last-check)))))
-    (when (and (numberp since-last)
-               (numberp interval)
+    (when (and since-last
                (> interval 0)
                (> since-last (* 2 interval))
                org-tempus-auto-clock-enabled
                (org-clock-is-active)
-               (numberp org-tempus-auto-clock-out-seconds)
                (> org-tempus-auto-clock-out-seconds 0)
                (>= since-last org-tempus-auto-clock-out-seconds))
       since-last)))
@@ -776,7 +771,6 @@ Return non-nil when an auto clock-in occurs."
 (defun org-tempus--maybe-update-dconf (&optional value)
   "Update dconf with VALUE when `org-tempus-dconf-path' is set."
   (when (and org-tempus-dconf-path
-             (stringp org-tempus-dconf-path)
              (> (length org-tempus-dconf-path) 0)
              (executable-find "dconf"))
     (let ((value (or value "")))
