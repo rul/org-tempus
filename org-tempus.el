@@ -319,6 +319,13 @@ Known providers are `emacs' (activity inside Emacs),
                  (const freedesktop-screensaver))
   :group 'org-tempus)
 
+(defcustom org-tempus-task-name-max-length 20
+  "Maximum width of the task name in the mode line.
+Longer names are truncated with an ellipsis.  Set to nil to never
+truncate."
+  :type '(choice (const :tag "No limit" nil) integer)
+  :group 'org-tempus)
+
 (defcustom org-tempus-show-legend t
   "When non-nil, show legend labels (S, T, B) in the mode line."
   :type 'boolean
@@ -405,8 +412,13 @@ Known providers are `emacs' (activity inside Emacs),
       (message "%s" msg)))))
 
 (defun org-tempus--current-task-name ()
-  "Return unpropertized name of current task."
-  (substring-no-properties org-clock-current-task))
+  "Return unpropertized name of current task, trimmed when too long.
+See `org-tempus-task-name-max-length'."
+  (let ((name (substring-no-properties org-clock-current-task)))
+    (if org-tempus-task-name-max-length
+        (truncate-string-to-width name org-tempus-task-name-max-length
+                                  nil nil t)
+      name)))
 
 (defun org-tempus--sum-today ()
   "Return total time clocked today across agenda files as a duration string."
