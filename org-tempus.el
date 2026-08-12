@@ -379,7 +379,9 @@ See `org-tempus-task-name-max-length'."
             (org-duration-to-minutes effort)))))))
 
 (defun org-tempus-reset-session ()
-  "Reset the current session timer."
+  "Start the current session over from now.
+The clock and the daily total are left alone.  Notification streaks
+are reset too, so session and idle notifications are sent again."
   (interactive)
   (org-tempus--reset-notification-state)
   (if (org-clock-is-active)

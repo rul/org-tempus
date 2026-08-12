@@ -87,6 +87,18 @@ An example minimal configuration could look like this:
  )
 ```
 
+## Commands
+
+- `org-tempus-reset-session`: start the session (S) over from now,
+  without touching the clock. The daily total (T) is unaffected. It
+  also clears the notification streak, so the next session and idle
+  notifications are sent again. Useful after a break `org-tempus`
+  didn't notice, such as a meeting away from the computer while a task
+  stayed clocked in.
+- `org-tempus-toggle-legend`: show or hide the `S`, `T` and `B` labels.
+- `org-tempus-toggle-notifications`: enable or disable notifications.
+- `org-tempus-toggle-auto-clock`: enable or disable auto clock in/out.
+
 ## Visual overview
 
 ### Mode line
