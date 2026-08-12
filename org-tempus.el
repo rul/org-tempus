@@ -88,11 +88,25 @@ Debug logs are appended to the *Org-Tempus-Debug* buffer."
 (defvar org-tempus--notification-reset-timer nil
   "Timer used to reset notification streaks.")
 
-(defvar org-tempus-idle-check-interval nil
-  "Seconds between idle checks and activity detection updates.")
+(defcustom org-tempus-idle-check-interval 60
+  "Seconds between idle checks for out-of-clock activity."
+  :type 'integer
+  :set (lambda (symbol value)
+         (set-default symbol value)
+         (when (and (bound-and-true-p org-tempus-mode)
+                    (fboundp 'org-tempus--restart-timers))
+           (org-tempus--restart-timers)))
+  :group 'org-tempus)
 
-(defvar org-tempus-notification-reset-seconds nil
-  "Seconds after which notification streaks reset.")
+(defcustom org-tempus-notification-reset-seconds 3600
+  "Seconds after which notification streaks reset."
+  :type 'integer
+  :set (lambda (symbol value)
+         (set-default symbol value)
+         (when (and (bound-and-true-p org-tempus-mode)
+                    (fboundp 'org-tempus--restart-timers))
+           (org-tempus--restart-timers)))
+  :group 'org-tempus)
 
 (defvar org-tempus--last-dconf-value nil
   "Last string posted to dconf, to avoid redundant updates.")
@@ -243,16 +257,6 @@ Clear the baseline when idle monitoring is disabled."
   "Restart Org Tempus timers."
   (org-tempus--start-timers))
 
-(defcustom org-tempus-notification-reset-seconds 3600
-  "Seconds after which notification streaks reset."
-  :type 'integer
-  :set (lambda (symbol value)
-         (set-default symbol value)
-         (when (and (bound-and-true-p org-tempus-mode)
-                    (fboundp 'org-tempus--restart-timers))
-           (org-tempus--restart-timers)))
-  :group 'org-tempus)
-
 (defcustom org-tempus-break-threshold-seconds 10800
   "Maximum break seconds to display when no task is clocked in."
   :type 'integer
@@ -260,16 +264,6 @@ Clear the baseline when idle monitoring is disabled."
 
 (defvar org-tempus--auto-clock-out-time nil
   "Time when Org Tempus last auto clocked out.")
-
-(defcustom org-tempus-idle-check-interval 60
-  "Seconds between idle checks for out-of-clock activity."
-  :type 'integer
-  :set (lambda (symbol value)
-         (set-default symbol value)
-         (when (and (bound-and-true-p org-tempus-mode)
-                    (fboundp 'org-tempus--restart-timers))
-           (org-tempus--restart-timers)))
-  :group 'org-tempus)
 
 (defcustom org-tempus-idle-active-streak-seconds 120
   "Seconds of continuous activity before notifying to clock-in."
@@ -982,10 +976,6 @@ Return non-nil when an auto clock-in occurs."
 
 (defun org-tempus--enable ()
   "Enable org-tempus integrations."
-  (unless (numberp org-tempus-idle-check-interval)
-    (setq org-tempus-idle-check-interval 60))
-  (unless (numberp org-tempus-notification-reset-seconds)
-    (setq org-tempus-notification-reset-seconds 3600))
   (org-tempus--reset-notification-state)
   (org-tempus--start-timers)
   (add-hook 'org-clock-in-hook #'org-tempus--update-session-start)
