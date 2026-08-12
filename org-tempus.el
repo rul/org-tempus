@@ -295,9 +295,6 @@ truncate."
 (defconst org-tempus--mode-line-format '(:eval org-tempus-mode-line-string)
   "Mode line construct used by Org Tempus.")
 
-(defvar org-tempus--saved-org-mode-line-string nil
-  "Saved value of `org-mode-line-string' when `org-tempus-mode' is enabled.")
-
 (defvar org-tempus--saved-org-mode-line-string-present nil
   "Non-nil when `org-mode-line-string' was in `global-mode-string'.")
 
@@ -864,7 +861,8 @@ Return non-nil when an auto clock-in occurs."
     (force-mode-line-update))
   (setq org-clock-clocked-in-display org-tempus--saved-org-clock-clocked-in-display)
   (when org-tempus-hide-org-mode-line-string
-    (setq org-mode-line-string org-tempus--saved-org-mode-line-string)
+    ;; No need to restore `org-mode-line-string': both branches below
+    ;; overwrite it, via `org-clock-update-mode-line' or with "".
     (if (org-clock-is-active)
         (progn
           (when (or org-tempus--saved-org-mode-line-string-present
@@ -913,7 +911,6 @@ Return non-nil when an auto clock-in occurs."
   (setq org-tempus--saved-org-clock-clocked-in-display org-clock-clocked-in-display)
   (setq org-clock-clocked-in-display nil)
   (when org-tempus-hide-org-mode-line-string
-    (setq org-tempus--saved-org-mode-line-string org-mode-line-string)
     (setq org-tempus--saved-org-mode-line-string-present nil)
     (org-tempus--hide-org-mode-line))
   (when (org-clock-is-active)
