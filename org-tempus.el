@@ -714,10 +714,6 @@ SWITCH-TO-STATE, FAIL-QUIETLY, and AT-TIME are the arguments of
               (org-tempus--debug "Notify idle: %s" msg)
               (org-tempus--notify msg))))))))
 
-(defun org-tempus--gvariant-string (value)
-  "Return VALUE as a quoted GVariant string literal."
-  (concat "'" (replace-regexp-in-string "['\\\\]" "\\\\\\&" value) "'"))
-
 (defun org-tempus--clock-in-last (start-time)
   "Clock in to the last task using START-TIME.
 Return non-nil when clock-in succeeds."
@@ -797,9 +793,10 @@ Return non-nil when an auto clock-in occurs."
     (let ((value (or value "")))
       (when (not (equal value org-tempus--last-dconf-value))
         (setq org-tempus--last-dconf-value value)
+        ;; Elisp print syntax doubles as a GVariant double-quoted string.
         (call-process "dconf" nil 0 nil
                       "write" org-tempus-dconf-path
-                      (org-tempus--gvariant-string value))))))
+                      (prin1-to-string value))))))
 
 (defun org-tempus--update-mode-line ()
   "Update the Org Tempus mode line indicator."
