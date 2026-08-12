@@ -172,16 +172,6 @@ When nil, start session tracking on clock-in."
   :type 'boolean
   :group 'org-tempus)
 
-(defcustom org-tempus-notification-timeout-ms 5000
-  "Milliseconds before notifications expire.  Set to 0 to use defaults."
-  :type 'integer
-  :group 'org-tempus)
-
-(defcustom org-tempus-notification-replace t
-  "When non-nil, reuse a single notification instead of stacking them."
-  :type 'boolean
-  :group 'org-tempus)
-
 (defcustom org-tempus-notification-max-count 3
   "Maximum number of break or idle notifications."
   :type 'integer
@@ -360,25 +350,23 @@ truncate."
                        (or (plist-get org-tempus--notification-state :count) 0)
                        org-tempus-notification-max-count)
     (let ((sent nil))
-    (when (or (fboundp 'notifications-notify)
-              (require 'notifications nil t))
-      (setq sent
-            (condition-case err
-                (progn
-                  (setq org-tempus--notification-id
-                        (notifications-notify
-                         :title "Org Tempus"
-                         :body msg
-                         :timeout (when (> org-tempus-notification-timeout-ms 0)
-                                    org-tempus-notification-timeout-ms)
-                         :replaces-id (when org-tempus-notification-replace
-                                        org-tempus--notification-id)))
-                  t)
-              (error
-               (message "Org Tempus notification error: %s" err)
-               nil))))
-    (unless sent
-      (message "%s" msg)))))
+      (when (or (fboundp 'notifications-notify)
+                (require 'notifications nil t))
+        (setq sent
+              (condition-case err
+                  (progn
+                    (setq org-tempus--notification-id
+                          (notifications-notify
+                           :title "Org Tempus"
+                           :body msg
+                           :timeout 5000
+                           :replaces-id org-tempus--notification-id))
+                    t)
+                (error
+                 (message "Org Tempus notification error: %s" err)
+                 nil))))
+      (unless sent
+        (message "%s" msg)))))
 
 (defun org-tempus--current-task-name ()
   "Return unpropertized name of current task, trimmed when too long.
