@@ -122,6 +122,19 @@
          nil nil requested)
         (should (equal clock-out-at requested))))))
 
+(ert-deftest org-tempus-mode-line-items-follow-the-legend-setting ()
+  (let ((org-tempus-show-legend t))
+    (should (equal (org-tempus--format-mode-line-items
+                    '("S" . "0:30") '("T" . "1:00"))
+                   "S 0:30 | T 1:00"))
+    (should (equal (org-tempus--format-mode-line-items
+                    '("T" . "1:00") nil)
+                   "T 1:00")))
+  (let ((org-tempus-show-legend nil))
+    (should (equal (org-tempus--format-mode-line-items
+                    '("T" . "1:00") '("B" . "0:05"))
+                   "1:00|0:05"))))
+
 (ert-deftest org-tempus-idle-auto-clock-out-backdates-by-idle-time ()
   (org-tempus-test--with-clocked-suspend-state
     (let ((now (seconds-to-time 1060))

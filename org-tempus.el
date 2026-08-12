@@ -506,17 +506,16 @@ A session does not reset when switching tasks within
                  (<= gap org-tempus-break-threshold-seconds))
         (floor gap)))))
 
-(defun org-tempus--format-mode-line-item (label value)
-  "Format a mode line VALUE with optional LABEL."
-  (if org-tempus-show-legend
-      (concat label " " value)
-    value))
-
-(defun org-tempus--mode-line-separator ()
-  "Return the separator used between mode line items."
-  (if org-tempus-show-legend
-      " | "
-    "|"))
+(defun org-tempus--format-mode-line-items (&rest items)
+  "Join ITEMS into a mode line group.
+Each item is a cons of a legend LABEL and its VALUE, or nil to be
+skipped.  Labels are dropped when `org-tempus-show-legend' is nil."
+  (mapconcat (lambda (item)
+               (if org-tempus-show-legend
+                   (concat (car item) " " (cdr item))
+                 (cdr item)))
+             (delq nil items)
+             (if org-tempus-show-legend " | " "|")))
 
 (defun org-tempus--idle-seconds-from-dbus (service path interface method)
   "Return idle seconds from METHOD on SERVICE, PATH, and INTERFACE.
@@ -787,10 +786,9 @@ Return non-nil when an auto clock-in occurs."
                                        session)))
                     (org-tempus--maybe-notify-session-threshold session-seconds)
                     (concat "⏳["
-                            (org-tempus--format-mode-line-item "S" session-str)
-                            (org-tempus--mode-line-separator)
-                            (org-tempus--format-mode-line-item
-                             "T" total-display)
+                            (org-tempus--format-mode-line-items
+                             (cons "S" session-str)
+                             (cons "T" total-display))
                             "] "
                             (let* ((task-minutes (org-clock-get-clocked-time))
                                    (task-time (org-duration-from-minutes task-minutes))
@@ -812,13 +810,9 @@ Return non-nil when an auto clock-in occurs."
                                     (org-duration-from-minutes
                                      (/ break-seconds 60.0)))))
                   (concat "⌛️["
-                          (org-tempus--format-mode-line-item
-                           "T" total-display)
-                          (if break-str
-                              (concat (org-tempus--mode-line-separator)
-                                      (org-tempus--format-mode-line-item
-                                       "B" break-str))
-                            "")
+                          (org-tempus--format-mode-line-items
+                           (cons "T" total-display)
+                           (and break-str (cons "B" break-str)))
                           "]"))))
          (str (propertize raw 'help-echo "Org Tempus")))
     (org-tempus--maybe-notify-total-threshold total-seconds)
