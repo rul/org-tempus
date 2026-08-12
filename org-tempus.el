@@ -91,7 +91,7 @@ Debug logs are appended to the *Org-Tempus-Debug* buffer."
   :set (lambda (symbol value)
          (set-default symbol value)
          (when (bound-and-true-p org-tempus-mode)
-           (org-tempus--restart-timers)))
+           (org-tempus--start-timers)))
   :group 'org-tempus)
 
 (defcustom org-tempus-notification-reset-seconds 3600
@@ -100,7 +100,7 @@ Debug logs are appended to the *Org-Tempus-Debug* buffer."
   :set (lambda (symbol value)
          (set-default symbol value)
          (when (bound-and-true-p org-tempus-mode)
-           (org-tempus--restart-timers)))
+           (org-tempus--start-timers)))
   :group 'org-tempus)
 
 (defvar org-tempus--last-dconf-value nil
@@ -219,10 +219,6 @@ Clear the baseline when idle monitoring is disabled."
           (run-at-time org-tempus-notification-reset-seconds
                        org-tempus-notification-reset-seconds
                        #'org-tempus--reset-notification-state))))
-
-(defun org-tempus--restart-timers ()
-  "Restart Org Tempus timers."
-  (org-tempus--start-timers))
 
 (defcustom org-tempus-break-threshold-seconds 10800
   "Maximum break seconds to display when no task is clocked in."
