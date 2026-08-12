@@ -174,16 +174,13 @@ When nil, start session tracking on clock-in."
   :type 'integer
   :group 'org-tempus)
 
-(defun org-tempus--idle-monitoring-enabled-p ()
-  "Return non-nil when idle polling can maintain a suspend baseline."
-  (and (numberp org-tempus-idle-check-interval)
-       (> org-tempus-idle-check-interval 0)))
-
 (defun org-tempus--set-idle-check-baseline (&optional time)
   "Record an awake suspend-detection baseline at TIME.
-Clear the baseline when idle monitoring is disabled."
+Clear the baseline when idle polling is disabled, since without it
+nothing refreshes the baseline and every gap looks like a suspend."
   (setq org-tempus--last-idle-check-time
-        (and (org-tempus--idle-monitoring-enabled-p)
+        (and (numberp org-tempus-idle-check-interval)
+             (> org-tempus-idle-check-interval 0)
              (or time (current-time)))))
 
 (defun org-tempus--stop-timers ()
