@@ -731,10 +731,13 @@ Return non-nil when an auto clock-in occurs."
   "Clock in to the default task using START-TIME.
 Return non-nil when clock-in succeeds."
   (let ((marker (org-id-find org-tempus-auto-clock-default-task-id 'marker)))
-    (when (and marker (marker-buffer marker))
-      (org-with-point-at marker
-        (org-clock-in nil start-time))
-      t)))
+    (if (and marker (marker-buffer marker))
+        (progn
+          (org-with-point-at marker
+            (org-clock-in nil start-time))
+          t)
+      (org-tempus--debug "Skipping auto clock-in (default): Org ID not found")
+      nil)))
 
 (defun org-tempus--maybe-auto-clock-in-default (&optional start-time)
   "Auto clock in to the default task if eligible.
@@ -743,13 +746,11 @@ Return non-nil when an auto clock-in occurs."
   (when (and org-tempus-auto-clock-enabled
              org-tempus-auto-clock-default-task-id
              (not (org-clock-is-active)))
-    (if (org-id-find org-tempus-auto-clock-default-task-id 'marker)
-        (org-tempus--auto-clock-in
-         #'org-tempus--clock-in-default
-         start-time
-         (org-tempus--auto-clock-in-message
-          "Auto clocked in to your default task"))
-      (org-tempus--debug "Skipping auto clock-in (default): Org ID not found"))))
+    (org-tempus--auto-clock-in
+     #'org-tempus--clock-in-default
+     start-time
+     (org-tempus--auto-clock-in-message
+      "Auto clocked in to your default task"))))
 
 (defun org-tempus--maybe-update-dconf (&optional value)
   "Update dconf with VALUE when `org-tempus-dconf-path' is set."
