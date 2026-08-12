@@ -526,13 +526,6 @@ A session does not reset when switching tasks within
       " | "
     "|"))
 
-(defun org-tempus--idle-seconds-from-emacs ()
-  "Return idle seconds based on Emacs input activity."
-  (let ((idle (current-idle-time)))
-    (if idle
-        (float-time idle)
-      0)))
-
 (defun org-tempus--idle-seconds-from-dbus (service path interface method)
   "Return idle seconds from METHOD on SERVICE, PATH, and INTERFACE.
 METHOD is expected to answer in milliseconds.  Return nil when the
@@ -548,7 +541,7 @@ session bus, the service, or the method is unavailable."
 (defun org-tempus--session-idle-seconds ()
   "Return session idle time in seconds or nil when unavailable."
   (pcase org-tempus-idle-provider
-    ('emacs (org-tempus--idle-seconds-from-emacs))
+    ('emacs (float-time (or (current-idle-time) 0)))
     ('mutter (org-tempus--idle-seconds-from-dbus
               "org.gnome.Mutter.IdleMonitor"
               "/org/gnome/Mutter/IdleMonitor/Core"
