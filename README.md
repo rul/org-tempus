@@ -51,6 +51,56 @@ manually if I forget to clock out when I stop using my computer.
 All thresholds are configurable. By default, `org-tempus` suggests
 work sessions of 30 minutes, and 5 hours of total work.
 
+## Mode line
+
+While a task is clocked in, the mode line shows the session time (S),
+the day's total (T), the task's clocked time (against its effort, when
+one is set), and its heading:
+
+```
+⏳[S 0:20 | T 3:20] <0:47/1:00> Write release notes
+```
+
+When no task is clocked in, it shows the day's total and the break
+time (B):
+
+```
+⌛️[T 3:20 | B 0:12]
+```
+
+The session time and the task time turn red once the session threshold
+and the task's effort are reached, as in the recording above.
+
+The legend is a reminder of what each number means. Once you no longer
+need it, `org-tempus-toggle-legend` drops the labels:
+
+```
+⏳[0:20|3:20] <0:47/1:00> Write release notes
+```
+
+By default `org-tempus` hides the stock Org mode line indicator and
+replaces it with its own entry. This is recommended, but you can toggle
+it off with `org-tempus-hide-org-mode-line-string`, and control whether
+`org-tempus` is added to the global mode line at all with
+`org-tempus-add-to-global-mode-string`.
+
+## Notifications
+
+Notifications are sent when the session threshold is reached, when the
+total time threshold is reached, and when activity is detected while no
+task is clocked in. They can be toggled off with
+`org-tempus-toggle-notifications`.
+
+<img src="https://raw.githubusercontent.com/rul/org-tempus/assets/screenshots/org-tempus-notifications.png" alt="Session threshold, total time threshold, and activity-without-a-clock notifications">
+
+## GNOME panel
+
+The optional dconf integration writes the mode line string where
+GNOME's panel can pick it up, so you can see your timers even when you
+aren't looking at Emacs.
+
+<img src="https://raw.githubusercontent.com/rul/org-tempus/assets/screenshots/org-tempus-dconf-gnome.png" height="25" alt="GNOME panel integration">
+
 ## Installation
 
 `org-tempus` is available on [MELPA](https://melpa.org/#/org-tempus):
@@ -128,53 +178,3 @@ org-tempus` or `M-x apropos-variable`. The ones worth knowing about:
 - `org-tempus-toggle-legend`: show or hide the `S`, `T` and `B` labels.
 - `org-tempus-toggle-notifications`: enable or disable notifications.
 - `org-tempus-toggle-auto-clock`: enable or disable auto clock in/out.
-
-## Mode line
-
-While a task is clocked in, the mode line shows the session time (S),
-the day's total (T), the task's clocked time (against its effort, when
-one is set), and its heading:
-
-```
-⏳[S 0:20 | T 3:20] <0:47/1:00> Write release notes
-```
-
-When no task is clocked in, it shows the day's total and the break
-time (B):
-
-```
-⌛️[T 3:20 | B 0:12]
-```
-
-The session time and the task time turn red once the session threshold
-and the task's effort are reached, as in the recording above.
-
-The legend is a reminder of what each number means. Once you no longer
-need it, `org-tempus-toggle-legend` drops the labels:
-
-```
-⏳[0:20|3:20] <0:47/1:00> Write release notes
-```
-
-By default `org-tempus` hides the stock Org mode line indicator and
-replaces it with its own entry. This is recommended, but you can toggle
-it off with `org-tempus-hide-org-mode-line-string`, and control whether
-`org-tempus` is added to the global mode line at all with
-`org-tempus-add-to-global-mode-string`.
-
-## Notifications
-
-Notifications are sent when the session threshold is reached, when the
-total time threshold is reached, and when activity is detected while no
-task is clocked in. They can be toggled off with
-`org-tempus-toggle-notifications`.
-
-<img src="https://raw.githubusercontent.com/rul/org-tempus/assets/screenshots/org-tempus-notifications.png" alt="Session threshold, total time threshold, and activity-without-a-clock notifications">
-
-## GNOME panel
-
-The optional dconf integration writes the mode line string where
-GNOME's panel can pick it up, so you can see your timers even when you
-aren't looking at Emacs.
-
-<img src="https://raw.githubusercontent.com/rul/org-tempus/assets/screenshots/org-tempus-dconf-gnome.png" height="25" alt="GNOME panel integration">
