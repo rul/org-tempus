@@ -1,5 +1,8 @@
 # org-tempus
 
+[![MELPA](https://melpa.org/packages/org-tempus-badge.svg)](https://melpa.org/#/org-tempus)
+[![MELPA Stable](https://stable.melpa.org/packages/org-tempus-badge.svg)](https://stable.melpa.org/#/org-tempus)
+
 `org-tempus` is an Emacs package to enhance Org's time tracking
 features by setting thresholds for session and daily clocked time, and
 sending notifications when they are reached. It optionally auto clocks
@@ -49,16 +52,33 @@ work sessions of 30 minutes, and 5 hours of total work.
 
 ## Installation
 
-```lisp
-(unless (package-installed-p 'org-tempus)
-  (package-vc-install "https://github.com/rul/org-tempus.git"))
+`org-tempus` is available on [MELPA](https://melpa.org/#/org-tempus):
 
+```
+M-x package-install RET org-tempus RET
+```
+
+Or with `use-package`:
+
+```lisp
 (use-package org-tempus
+  :ensure t
   :init
   (org-tempus-mode 1))
 ```
 
-MELPA integration coming soon.
+If you don't have MELPA in your archives yet:
+
+```lisp
+(add-to-list 'package-archives
+             '("melpa" . "https://melpa.org/packages/") t)
+```
+
+To follow the development version instead of a release:
+
+```lisp
+(package-vc-install "https://github.com/rul/org-tempus.git")
+```
 
 ## Configuration
 
