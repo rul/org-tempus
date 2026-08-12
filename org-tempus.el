@@ -327,8 +327,10 @@ truncate."
     (force-mode-line-update)))
 
 (defun org-tempus--maybe-hide-org-mode-line (&rest _)
-  "Hide Org's mode line string when Org Tempus is active."
-  (when (and org-tempus-mode org-tempus-hide-org-mode-line-string)
+  "Hide Org's mode line string when Org Tempus is active.
+The `org-tempus-mode' guard matters: `org-tempus--disable' calls
+`org-clock-update-mode-line' while this advice is still installed."
+  (when org-tempus-mode
     (org-tempus--hide-org-mode-line)))
 
 (defun org-tempus--notify (msg)
