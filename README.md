@@ -160,11 +160,7 @@ Notifications are sent when:
 - Total time threshold is reached
 - Activity is detected but no task is clocked in.
 
-<p>
-  <img src="https://raw.githubusercontent.com/rul/org-tempus/assets/screenshots/org-tempus-notification-session.png" width="250" alt="Session notification">
-  <img src="https://raw.githubusercontent.com/rul/org-tempus/assets/screenshots/org-tempus-notification-total-time.png" width="250" alt="Total time notification">
-  <img src="https://raw.githubusercontent.com/rul/org-tempus/assets/screenshots/org-tempus-notification-not-clocked-in.png" width="250" alt="No task notification">
-</p>
+<img src="https://raw.githubusercontent.com/rul/org-tempus/assets/screenshots/org-tempus-notifications.png" alt="Session threshold, total time threshold, and activity-without-a-clock notifications">
 
 Notifications can be toggled off with `org-tempus-toggle-notifications`.
 
