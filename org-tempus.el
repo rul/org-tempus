@@ -570,6 +570,24 @@ been missed."
                (>= since-last org-tempus-auto-clock-out-seconds))
       since-last)))
 
+(defun org-tempus--auto-clock-out (now at-time seconds reason)
+  "Auto clock out at NOW after SECONDS of REASON, and notify.
+Back-date the clock-out to AT-TIME when
+`org-tempus-auto-clock-out-backdate' is non-nil.  REASON is the
+wording used in the notification, such as \"away\" or \"idle\".
+Always return non-nil."
+  (setq org-tempus--auto-clock-out-time now)
+  (if org-tempus-auto-clock-out-backdate
+      (org-clock-out nil t at-time)
+    (org-clock-out nil t))
+  (setq org-tempus--session-start-time nil)
+  (org-tempus--reset-notification-state)
+  (org-tempus--notify
+   (format "Auto clocked out after %s %s."
+           (org-duration-from-minutes (/ seconds 60.0))
+           reason))
+  t)
+
 (defun org-tempus--maybe-auto-clock-out-after-suspend (&optional now)
   "Auto clock out a running clock when NOW follows a suspend gap.
 Return non-nil when a clock is stopped."
@@ -580,17 +598,7 @@ Return non-nil when a clock is stopped."
       (org-tempus--debug "Auto clock-out after suspend gap: %.1fs" since-last)
       ;; Update this before `org-clock-out' runs hooks that refresh the mode line.
       (setq org-tempus--last-idle-check-time now)
-      (setq org-tempus--auto-clock-out-time now)
-      (if org-tempus-auto-clock-out-backdate
-          (org-clock-out nil t last-check)
-        (org-clock-out nil t))
-      (setq org-tempus--session-start-time nil)
-      (org-tempus--reset-notification-state)
-      (org-tempus--notify
-       (format "Auto clocked out after %s away."
-               (org-duration-from-minutes
-                (/ since-last 60.0))))
-      t)))
+      (org-tempus--auto-clock-out now last-check since-last "away"))))
 
 (defun org-tempus--clock-out-advice (oldfun &optional switch-to-state fail-quietly at-time)
   "Repair a pending suspend gap before OLDFUN writes a clock-out entry.
@@ -655,18 +663,11 @@ SWITCH-TO-STATE, FAIL-QUIETLY, and AT-TIME are the arguments of
                    (> org-tempus-auto-clock-out-seconds 0)
                    (>= idle-seconds org-tempus-auto-clock-out-seconds))
           (org-tempus--debug "Auto clock-out after idle: %.1fs" idle-seconds)
-          (setq org-tempus--auto-clock-out-time (current-time))
-          (if org-tempus-auto-clock-out-backdate
-              (org-clock-out nil t (time-subtract (current-time)
-                                                  (seconds-to-time idle-seconds)))
-            (org-clock-out nil t))
-          (setq org-tempus--session-start-time nil)
-          (org-tempus--reset-notification-state)
-          (org-tempus--update-mode-line)
-          (org-tempus--notify
-           (format "Auto clocked out after %s idle."
-                   (org-duration-from-minutes
-                    (/ idle-seconds 60.0)))))
+          (org-tempus--auto-clock-out now
+                                      (time-subtract now (seconds-to-time
+                                                          idle-seconds))
+                                      idle-seconds "idle")
+          (org-tempus--update-mode-line))
         (if (and active (not (org-clock-is-active)))
             (when (or (not (numberp since-last))
                       (and (>= since-last org-tempus-idle-check-interval)
